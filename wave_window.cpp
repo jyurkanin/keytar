@@ -37,12 +37,6 @@ void init_window(){
         XNextEvent(dpy, &e);        
     } while(e.type != MapNotify);
 
-    for(int i = 0; i < 10; i++){
-      for(int j = 0; j < 10; j++){
-	node_map[i][j] = 0;
-      }
-    }
-    
     pthread_create(&w_thread, NULL, &sy_window_thread, NULL);    
 }
 
@@ -68,24 +62,20 @@ int is_window_open(){
     return is_window_alive;
 }
 
-char* get_string(){ //read the keyboard for a string
+void get_string(char* number){ //read the keyboard for a string
     XEvent e;
     char buf[2];
-    char number[128];
     int count = 0;
     do{
         if(XPending(dpy) > 0){
             XNextEvent(dpy, &e);
             if(e.type == KeyPress){
                 XLookupString(&e.xkey, buf, 1, NULL, NULL);
-                //if(isdigit(buf[0])){
 		number[count] = buf[0];
 		count++;
-		    //}
             }
         }
     } while(buf[0] != '\n');
-    return number;
 }
 
 int get_num(){ //read the keyboard for a number
@@ -127,6 +117,7 @@ void *sy_window_thread(void * arg){
     
     int synth_num;
     SynthAlg* synth;
+    int alg_num;
     
     while(1){
         if(XPending(dpy) > 0){
@@ -142,7 +133,7 @@ void *sy_window_thread(void * arg){
 		    sscanf(buf, "%d", &synth_num);
 		    synth = getSynth(synth_num);
 		    if(synth){
-		      synth->activate();
+		      synth->controller.activate();
 		      cmd_state = SYNTH_STATE;
 		    }
 		  }
@@ -156,7 +147,7 @@ void *sy_window_thread(void * arg){
 		      if(speed == 0) speed = 1;
 		      break;
 		    case 'd': //delete a synthalg
-		      int alg_num = get_num();
+		      alg_num = get_num();
 		      delSynth(alg_num);
 		      break;
 		    case 'a': //add a new synthalg
@@ -165,10 +156,10 @@ void *sy_window_thread(void * arg){
 		      draw_synth_selection_window();
 		      XFlush(dpy);
 		      
-		      int alg_num = get_num(); //get number from user
+		      alg_num = get_num(); //get number from user
 		      addSynth(alg_num);
 		      synth = getSynth(getNumAlgorithms()-1);
-		      synth->activate();
+		      synth->controller.activate();
 		      break;
 		    case 'q': //quit
 		      del_window();
@@ -181,7 +172,7 @@ void *sy_window_thread(void * arg){
 		  draw_synth_window(synth);
 		  switch(buf[0]){
 		  case 'x':
-		    getSynth(MAIN_CONTROLLER_NUM)->activate();
+		    
 		    break;
 		  case '+':
 		    speed *= 2;
@@ -217,6 +208,7 @@ void draw_synth_selection_window(){
 }
 
 void draw_main_params(){
+  Controller *main = getMainController();
   char line[60];
   memset(line, 0, 60);
   int num_algs = getNumAlgorithms();
@@ -228,19 +220,19 @@ void draw_main_params(){
     else{
       name = "NONE";
     }
-    sprintf(line, "[Alg|Knob|Slider|Button %d] [%s|%d|%d|%d]", i, name, get_knob(i), get_slider(i), get_button_state(i));
+    sprintf(line, "[Alg|Knob|Slider] [%s|%d|%d]", name, main->get_knob(i), main->get_slider(i));
     XDrawString(dpy, w, gc, 1, (8*i) + 1, line, 60);
   }
 }
 
 void draw_synth_params(SynthAlg* synth){
-  const char *mapping[18];
+  char **mapping = new char*[18];
   int len;
   synth->getControlMap(mapping, len);
   for(int i = 0; i < len; i++){
     XDrawString(dpy, w, gc, 1, (8*i) + 2, mapping[i], 50);
   }
-  
+  delete mapping;
 }
 
 void draw_main_window(){
@@ -304,14 +296,14 @@ void clear_wave(){
 void draw_wave(int plot_num){
   float avg_value = 0;
   
-  sleep_time = (int) (1000000.0*(speed/44100.0));
+  int sleep_time = (int) (1000000.0*(speed/44100.0));
   if(is_buf_empty){
     for(int i = 0; i < W_SAMPLE_LEN; i++){
       avg_value += wave_buffer[i];
       if((i % sleep_time) == 0){
 	clear_wave();
 	plot_wave(plot_num, avg_value / speed);
-	avg_values = 0;
+	avg_value = 0;
       }
     }
     usleep(sleep_time);
@@ -324,7 +316,7 @@ void draw_wave(int plot_num){
       if((i % sleep_time) == 0){
 	clear_wave();
 	plot_wave(plot_num, avg_value / speed);
-	avg_values = 0;
+	avg_value = 0;
 	usleep(sleep_time);
       }
     }
@@ -339,21 +331,20 @@ void draw_wave(int plot_num){
 }
 
 void draw_fft(){
-  float fft_plots[W_SAMPLE_LEN];  
+  float *fft_plots = new float[W_SAMPLE_LEN];  
   calc_fft(wave_buffer, fft_plots, W_SAMPLE_LEN);
   int ind;
   int ind_prev;
   
   XSetForeground(dpy, gc, 0xFF);
-  for(int i = 0; i < W_SAMPLE_LEN; i++){
-    ind = (start_index[plot_num] + i) % W_SAMPLE_LEN;
+  for(int i = 1; i < W_SAMPLE_LEN; i++){
     //XFillRectangle(dpy, w, gc, i, (int) 64 + 63*plots[plot_num][ind], 1, 1);
     //TODO: THe number 2 in the next line is a guess
-    XDrawLine(dpy, w, gc, i + (SCREEN_WIDTH/2), (int) (SCREEN_HEIGHT*.75) + 2*fft_plots[ind], i + (SCREEN_WIDTH/2) - 1, (int) (SCREEN_HEIGHT*.75) + 2*fft_plots[ind_prev]);
+    XDrawLine(dpy, w, gc, i + (SCREEN_WIDTH/2), (int) (SCREEN_HEIGHT*.75) + 2*fft_plots[i], i + (SCREEN_WIDTH/2) - 1, (int) (SCREEN_HEIGHT*.75) + 2*fft_plots[i-1]);
     //XDrawLine(dpy, w, gc, i, (int) 64 + 63*plots[plot_num][ind], i, 64);
-    ind_prev = ind;
   }
   XFlush(dpy);
+  delete fft_plots;
 }
 
 /*

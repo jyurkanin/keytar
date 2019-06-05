@@ -8,18 +8,11 @@ int MidiFD;
 MidiByte midiNotesPressed[0xFF]; /* this records all the notes currently on by pitch maximum notes on is KEYS*/
 MidiByte midiNotesSustained[0xFF];
 float freqs[12] = {27.5, 29.135, 30.868, 32.703, 34.648, 36.708, 38.891, 41.203, 43.654, 46.249, 48.999, 51.913}; // frequencies of the lowest octave
-vector<SynthAlg*> synth_algorithms;
+std::vector<SynthAlg*> synth_algorithms;
 //SynthAlg *synth_algorithms[MAX_NUM_WAVES];
 //int num_algorithms = 0;
 Controller main_controller;
-
-void debugArray(char array[]){
-    for(int i = 0; i < Q_SIZE; i++){
-        printf("%d ", array[i]);
-    }
-    printf("\n");
-    return;
-}
+Sample sample;
 
 void breakOnMe(){
     //break me on, Break on meeeeeee
@@ -30,18 +23,20 @@ int getNumAlgorithms(){
 }
 
 SynthAlg* getSynth(int num){
-  if(num == MAIN_CONTROLLER_NUM)
-    return &main_controller;
   if(num < synth_algorithms.size())
     return synth_algorithms[num];
   return NULL;
+}
+
+void activate_main_controller(){
+  main_controller.activate();
 }
 
 float synthesize(int n, int t, int volume){
   float sample = 0;
   
   for(int i = 0; i < synth_algorithms.size(); i++){
-    sample += master_controller.get_slider(i) * compute_algorithm(n, t, volume, i) / 128.0f;
+    sample += main_controller.get_slider(i) * compute_algorithm(n, t, volume, i) / 128.0f;
   }
   
   return sample;
@@ -61,16 +56,16 @@ float compute_algorithm(float freq, int t, int volume, int alg_num){
 void addSynth(int alg){
   if(synth_algorithms.size() >= MAX_NUM_WAVES) return;
   switch(alg){
-  case SynthAlg.SIN_ALG:
+  case SynthAlg::SIN_ALG:
     synth_algorithms.push_back(new SinAlg());
     break;
-  case SynthAlg.SWORD_ALG:
+  case SynthAlg::SWORD_ALG:
     synth_algorithms.push_back(new SwordAlg());
     break;
-  case SynthAlg.FM_SIMPLE_ALG:
+  case SynthAlg::FM_SIMPLE_ALG:
     synth_algorithms.push_back(new FmSimpleAlg());
     break;
-  case SynthAlg.WAVE_TABLE_ALG:
+  case SynthAlg::WAVE_TABLE_ALG:
     synth_algorithms.push_back(new WaveTableAlg());
     break;
   }  
@@ -193,14 +188,14 @@ int init_midi(int argc, char *argv[]){
     pthread_create(&m_thread, NULL, &audio_thread, NULL);
 
     main_controller.activate();
-    return init_controller(argc, argv);
+    return Controller::init_controller(argc, argv);
 }
 
 
 int exit_midi(){
     pthread_join(m_thread, NULL);
     close(MidiFD);
-    return EXIT_SUCCESS;
+    return Controller::exit_controller();
 }
 
 int init_alsa(){

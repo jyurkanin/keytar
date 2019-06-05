@@ -1,3 +1,5 @@
+#pragma once
+
 #include <stdio.h>
 #include <fcntl.h>
 #include <linux/soundcard.h>
@@ -18,10 +20,8 @@
 #include "wave_window.h"
 #include "ADSR_S.h"
 #include "synth.h"
+#include "controller.h"
 
-
-#ifndef __AUDIO_ENGINE_H__
-#define __AUDIO_ENGINE_H__
 
 #define MIDI_NOTE_ON 0x90
 #define MIDI_NOTE_OFF 0x80
@@ -52,7 +52,7 @@ void delSynth(int num);
 
 SynthAlg* getSynth(int num);
 int getNumAlgorithms();
-
+Controller *getMainController();
 
 int init_alsa();
 int exit_alsa();
@@ -60,4 +60,3 @@ int init_midi(int argc, char *argv[]);
 int exit_midi();
 int midi_loop();
 void *audio_thread(void *arg);
-#endif

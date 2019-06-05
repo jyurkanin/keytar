@@ -27,7 +27,7 @@ float SwordAlg::tick(float freq, int t){
   return sin(freq*t*OMEGA + get_slider(1)*get_knob(1)*.0078125*mo);
 }
 //mapping will be size 18 and len will say how short it actually is
-void SwordAlg::getControlMap(char**& mapping, int& len){
+void SwordAlg::getControlMap(const char**& mapping, int& len){
   sprintf(mapping[0], "silder(0)*knob(0)/32 = MOD_FREQ = %f", get_slider(0)*get_knob(0)/32.0);
   sprintf(mapping[1], "silder(1)*knob(1)/128 = LIN_GAIN = %f", get_slider(1)*get_knob(1)/128.0);
   len = 2;
@@ -38,7 +38,7 @@ float FmSimpleAlg::tick(float freq, int t){
   float mo = sin((freq*t*OMEGA) + (get_slider(0)*get_knob(0)*.03125));
   return sin(freq*t*OMEGA + get_slider(1)*get_knob(1)*mo*.0078125);
 }
-void FmSimpleAlg::getControlMap(char**& mapping, int& len){
+void FmSimpleAlg::getControlMap(const char**& mapping, int& len){
   sprintf(mapping[0], "silder(0)*knob(0)*.1 = MOD_FREQ = %f", get_slider(0)*get_knob(0)/32.0);
   sprintf(mapping[1], "silder(1)*knob(1)*.1 = LIN_GAIN = %f", get_slider(1)*get_knob(1)/128.0);
   len = 2;
@@ -47,7 +47,7 @@ void FmSimpleAlg::getControlMap(char**& mapping, int& len){
 float SinAlg::tick(float freq, int t){
   return sin(freq*t*OMEGA + (get_slider(0)*get_knob(0)*.03125));
 }
-void SinAlg::getControlMap(char**& mapping, int& len){
+void SinAlg::getControlMap(const char**& mapping, int& len){
   sprintf(mapping[0], "silder(0)*knob(0)*.1 = MOD_FREQ = %f", get_slider(0)*get_knob(0)/32.0);
   len = 1;
 }
@@ -87,7 +87,7 @@ void WaveTableAlg::setData(unsigned char* data, int len){
   
 }
 
-void WaveTableAlg::getControlMap(char**& mapping, int& len){
+void WaveTableAlg::getControlMap(const char**& mapping, int& len){
   sprintf(mapping[0], "knob(8)/128 = WAVE_TABLE_SWEEP_FREQ = %f", get_knob(8));
   sprintf(mapping[1], "silder(8) = ? = %f", get_slider(8));
   for(int i = 0; i < 8; i++){

@@ -1,3 +1,5 @@
+#pragma once
+
 #include "stk-4.6.0/include/ADSR.h"
 #include "stk-4.6.0/include/OneZero.h"
 #include "stk-4.6.0/include/Stk.h"

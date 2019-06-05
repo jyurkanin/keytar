@@ -1,3 +1,3 @@
-#include "fft.h"
+#pragma once
 
-void calc_fft(float values[], float &result[] int len);
+void calc_fft(float values[], float *&result, int len);

@@ -40,7 +40,7 @@ void ifft(CArray& x)
     x /= x.size();
 }
  
-void calc_fft(float values[], float &result[] int len)
+void calc_fft(float values[], float*& result, int len)
 {
   Complex test[] = new Complex[len];
   CArray data(test, len);

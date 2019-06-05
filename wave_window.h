@@ -1,3 +1,5 @@
+#pragma once
+
 #include <ncurses.h>
 #include <stdlib.h>
 #include <vector>
@@ -6,13 +8,10 @@
 #include <X11/Xlib.h>
 #include <math.h>
 #include <pthread.h>
-#include "dsp.h"
 #include "synth.h"
 #include "fft.h"
-#include "piano.h"
-
-#ifndef __WAVE_WINDOW_H__
-#define __WAVE_WINDOW_H__
+#include "audio_engine.h"
+#include "controller.h"
 
 #define NUM_SAMPLES 10
 #define W_BUF_SIZE 441 * 10
@@ -37,7 +36,7 @@ void plot_wave(int, float);
 void del_window();
 
 char* get_string(); //read the keyboard for a string
-char* get_num();
+int get_num();
 
 void draw_synth_selection_window();
 void draw_main_params();
@@ -55,6 +54,3 @@ void clear_top_right();
 void clear_bottom_left();
 void clear_bottom_right();
 void clear_wave();
-
-
-#endif
