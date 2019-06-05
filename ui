@@ -1,0 +1,48 @@
+MAIN WINDOW
+show dft
+WAVTBL = show movement through the wave table
+
+
+Main Window:
+The params are the volumes of the
+individual sound sources. Each
+sound source is an instance of
+the synth class. Pressing the
+number on the keyboard
+associated with each Synth object
+brings up the menu for that synth object
+
+MAIN MENU
+====================
+=         =        =
+= Params  = output =
+=	  =waveform=
+=         ==========
+=	  =        =
+=         =  DFT   =
+=	  =        =
+====================
+
+FM WAVE ALGORITHMS
+====================
+=         =        =
+= Params  = output =
+=	  =waveform=
+=         ==========
+=	  =        =
+=         =  DFT   =
+=	  =        =
+====================
+
+
+WAVTBL SYNTH WINDOW
+====================
+=         =        =
+=   DFT   = WAVTBL =
+=	  =	   =
+====================
+=	  =        =
+= files   = Params =
+=         =        =
+====================
+
