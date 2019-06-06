@@ -1,7 +1,6 @@
 #pragma once
 
 #include <math.h>
-#include "audio_engine.h"
 #include "controller.h"
 
 #define MAX_NUM_WAVES 8
@@ -17,6 +16,7 @@ class SynthAlg{
   SynthAlg(int s) : s_func(s){}
   virtual float tick(float freq, int t) = 0;
   virtual void getControlMap( char**& mapping, int& len) = 0; //this is for printing out which knobs/sliders do what in the synth_state menu
+  virtual void getSynthName(char name[20]);
   virtual void setData(unsigned char* data, int len) = 0;
   static const int SIN_ALG = 0;
   static const int SWORD_ALG = 1;

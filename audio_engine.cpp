@@ -28,6 +28,10 @@ SynthAlg* getSynth(int num){
   return NULL;
 }
 
+Controller* getMainController(){
+  return &main_controller;
+}
+
 void activate_main_controller(){
   main_controller.activate();
 }
@@ -111,11 +115,8 @@ void *audio_thread(void *arg){
         for(int k = 21; k <= 108; k++){
             if(midiNotesPressed[k] || midiNotesSustained[k]){
                 num_pressed++;
-                sample.volume[k] = midiNotesPressed[k] + midiNotesSustained[k];
-                if(sample.volume[k] > 128){
-                    printf("Motherfuckin maths aint right\n");
-                }
-                
+		sample.volume[k] = midiNotesSustained[k] + midiNotesPressed[k];
+		
                 if(adsr[k].getState() == stk::ADSR::RELEASE || adsr[k].getState() == stk::ADSR::IDLE){ //detect keyOn
 		    printf("Key On\n");
                     adsr[k].keyOn();
@@ -145,15 +146,9 @@ void *audio_thread(void *arg){
             }
         }
         
-	/*        if(num_pressed){
-            for(int i = 0; i < frames_to_deliver; i++){
-                sum_frames[i] /= num_pressed; //this was wronng my dude
-            }
-	    }*/
-        
         if(num_pressed){
 	    set_wave_buffer(0, sum_frames);
-	    printf("what kinda frames ya got %d\n", frames_to_deliver);
+	    //printf("what kinda frames ya got %d\n", frames_to_deliver);
             while((err = snd_pcm_writei (playback_handle, sum_frames, frames_to_deliver)) != frames_to_deliver) {
                 snd_pcm_prepare (playback_handle);
                 pcm_state = snd_pcm_state(playback_handle);
@@ -242,7 +237,7 @@ int init_alsa(){
     snd_pcm_uframes_t buf_size;
     snd_pcm_uframes_t period_size;
     snd_pcm_get_params(playback_handle, &buf_size, &period_size);
-    printf("%d derp %d\n", buf_size, period_size);    
+    //printf("%d derp %d\n", buf_size, period_size);    
     snd_pcm_prepare(playback_handle);
     return EXIT_SUCCESS;
 }
@@ -252,27 +247,19 @@ int exit_alsa(){
     return EXIT_SUCCESS;
 }
 
-char lastCmd = 0;
 int midi_loop(){
-  int sustain = 0;
+static int sustain = 0;
   int bend = 64;
   MidiByte packet[4];
     
   read(MidiFD, &packet, sizeof(packet));//sizeof(packet));
-  //printf("%d %d %d\n", packet[0], packet[1], packet[2]);
-  
-  if((packet[0] != MIDI_NOTE_ON) && (packet[0] != MIDI_NOTE_OFF)){
-    packet[2] = packet[1];
-    packet[1] = packet[0];
-    packet[0] = lastCmd;
-  }
-  
-  lastCmd = packet[0];
+  printf("keyboard %d %d %d\n", packet[0], packet[1], packet[2]);
   
   switch(packet[0]){
   case(MIDI_NOTE_OFF):
     if(sustain > 64){
       midiNotesSustained[packet[1]] = midiNotesPressed[packet[1]];
+      printf("SUSTAINING\n");
     }
     midiNotesPressed[packet[1]] = 0;
     break;
@@ -283,7 +270,7 @@ int midi_loop(){
     sustain = packet[2];
     if(sustain < 64){
       memset(midiNotesSustained, 0, sizeof(midiNotesSustained) * sizeof(midiNotesSustained[0]));
-        }
+    }
     break;
   case(PITCH_BEND):
     bend = packet[2];

@@ -1,5 +1,13 @@
 #pragma once
 
+#include <pthread.h>
+#include <stdio.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <stdlib.h>
+
+#define PEDAL 176
+
 class Controller{
  public:
   void activate();
@@ -14,6 +22,7 @@ class Controller{
   unsigned char was_loop_back_pressed();
   unsigned char was_fastforward_pressed();
   unsigned char was_rewind_pressed();
+  static int has_new_data();
   static int init_controller(int argc, char *argv[]);
   static int exit_controller();  
  private:
@@ -29,6 +38,7 @@ class Controller{
   unsigned char rewind;
   unsigned char big_slider;
   unsigned char big_knob;
+  static int has_new;
   static int controllerFD;
   static pthread_t c_thread;
   static Controller *active_controller;

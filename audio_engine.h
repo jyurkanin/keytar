@@ -6,7 +6,6 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <time.h>
-#include <stdio.h>
 #include "stk-4.6.0/include/OneZero.h"
 #include "stk-4.6.0/include/BlitSquare.h"
 #include "stk-4.6.0/include/Generator.h"
@@ -52,7 +51,7 @@ void delSynth(int num);
 
 SynthAlg* getSynth(int num);
 int getNumAlgorithms();
-Controller *getMainController();
+Controller* getMainController();
 
 int init_alsa();
 int exit_alsa();

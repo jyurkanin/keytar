@@ -1,17 +1,22 @@
 #include "synth.h"
+#include "audio_engine.h"
 
 #define OMEGA (2*M_PI/44100.0) //sample rate adjusted conversion from Hz to rad/s
 
-char *SynthAlg::getSynthName(){
+void SynthAlg::getSynthName(char name[20]){
   switch(s_func){
   case 0:
-    return "SIN_WAVE";
+    strcpy(name,"SIN_WAVE");
+    return;
   case 1:
-    return "SWORD";
+    strcpy(name,"SWORD");
+    return;
   case 2:
-    return "FM_SIMPLE";
+    strcpy(name, "FM_SIMPLE");
+    return;
   case 3:
-    return "WAVE_TABLE";
+    strcpy(name, "WAVE_TABLE");
+    return;
   }
 }
 
@@ -23,32 +28,32 @@ float SwordAlg::tick(float freq, int t){
   float mo;
   float ep = 0;
   if(t < 44100) ep = pow(M_E, -t/4410.0);
-  mo = ep*(sin(freq*get_slider(0)*get_knob(0)*.03125*OMEGA*t));
-  return sin(freq*t*OMEGA + get_slider(1)*get_knob(1)*.0078125*mo);
+  mo = ep*(sin(freq*controller.get_slider(0)*controller.get_knob(0)*.03125*OMEGA*t));
+  return sin(freq*t*OMEGA + controller.get_slider(1)*controller.get_knob(1)*.0078125*mo);
 }
 //mapping will be size 18 and len will say how short it actually is
-void SwordAlg::getControlMap(const char**& mapping, int& len){
-  sprintf(mapping[0], "silder(0)*knob(0)/32 = MOD_FREQ = %f", get_slider(0)*get_knob(0)/32.0);
-  sprintf(mapping[1], "silder(1)*knob(1)/128 = LIN_GAIN = %f", get_slider(1)*get_knob(1)/128.0);
+void SwordAlg::getControlMap(char**& mapping, int& len){
+  sprintf(mapping[0], "silder(0)*knob(0)/32 = MOD_FREQ = %f", controller.get_slider(0)*controller.get_knob(0)*.03125);
+  sprintf(mapping[1], "silder(1)*knob(1)/128 = LIN_GAIN = %f", controller.get_slider(1)*controller.get_knob(1)*.0078125);
   len = 2;
 }
 
 
 float FmSimpleAlg::tick(float freq, int t){
-  float mo = sin((freq*t*OMEGA) + (get_slider(0)*get_knob(0)*.03125));
-  return sin(freq*t*OMEGA + get_slider(1)*get_knob(1)*mo*.0078125);
+  float mo = sin((freq*t*OMEGA) + (controller.get_slider(0)*controller.get_knob(0)*.03125));
+  return sin(freq*t*OMEGA + controller.get_slider(1)*controller.get_knob(1)*mo*.0078125);
 }
-void FmSimpleAlg::getControlMap(const char**& mapping, int& len){
-  sprintf(mapping[0], "silder(0)*knob(0)*.1 = MOD_FREQ = %f", get_slider(0)*get_knob(0)/32.0);
-  sprintf(mapping[1], "silder(1)*knob(1)*.1 = LIN_GAIN = %f", get_slider(1)*get_knob(1)/128.0);
+void FmSimpleAlg::getControlMap(char**& mapping, int& len){
+  sprintf(mapping[0], "silder(0)*knob(0)*.1 = MOD_FREQ = %f", controller.get_slider(0)*controller.get_knob(0)/32.0);
+  sprintf(mapping[1], "silder(1)*knob(1)*.1 = LIN_GAIN = %f", controller.get_slider(1)*controller.get_knob(1)/128.0);
   len = 2;
 }
 
 float SinAlg::tick(float freq, int t){
-  return sin(freq*t*OMEGA + (get_slider(0)*get_knob(0)*.03125));
+  return sin(t*OMEGA*freq*controller.get_slider(0)*controller.get_knob(0)*.0078125);
 }
-void SinAlg::getControlMap(const char**& mapping, int& len){
-  sprintf(mapping[0], "silder(0)*knob(0)*.1 = MOD_FREQ = %f", get_slider(0)*get_knob(0)/32.0);
+void SinAlg::getControlMap(char**& mapping, int& len){
+  sprintf(mapping[0], "silder(0)*knob(0)*.1 = MOD_FREQ = %f", controller.get_slider(0)*controller.get_knob(0)*.0078125);
   len = 1;
 }
 
@@ -59,14 +64,14 @@ void SinAlg::getControlMap(const char**& mapping, int& len){
 //of the wave and an LFO with the phase offset. It will sum the result
 //of each convolution for each wave
 float WaveTableAlg::tick(float freq, int t){
-  float sweep_freq = get_knob(8);
+  float sweep_freq = controller.get_knob(8);
   float osc;
   float output = 0;
   float temp;
   float temp2 = (t/44100)*sweep_freq*32; //this is right trust me on this
   
   for(int i = 0; i < 8; i++){
-    osc = fmod(temp2 + get_knob(i), 128);
+    osc = fmod(temp2 + controller.get_knob(i), 128);
     if(osc < 8){
       temp = osc*.125;
     }
@@ -87,11 +92,11 @@ void WaveTableAlg::setData(unsigned char* data, int len){
   
 }
 
-void WaveTableAlg::getControlMap(const char**& mapping, int& len){
-  sprintf(mapping[0], "knob(8)/128 = WAVE_TABLE_SWEEP_FREQ = %f", get_knob(8));
-  sprintf(mapping[1], "silder(8) = ? = %f", get_slider(8));
+void WaveTableAlg::getControlMap(char**& mapping, int& len){
+  sprintf(mapping[0], "knob(8)/128 = WAVE_TABLE_SWEEP_FREQ = %f", controller.get_knob(8)/4.0);
+  sprintf(mapping[1], "silder(8) = ? = %d", controller.get_slider(8));
   for(int i = 0; i < 8; i++){
-    sprintf(mapping[2+i], "[%d|Pos:%d|Vol:%d]", get_knob(i), get_slider(i));
+    sprintf(mapping[2+i], "[%d|Pos:%d|Vol:%d]", i, controller.get_knob(i), controller.get_slider(i));
   }
   len = 10;
 }
@@ -111,7 +116,7 @@ void WaveTableAlg::getControlMap(const char**& mapping, int& len){
 
 /*
 float WaveTableAlg::tick(float freq, int t){
-  float step = get_knob(8) / 128.0f;
+  float step = controller.get_knob(8) / 128.0f;
   float real_index = fmod(step*t, 128);
   
   float x1 = (int) real_index; //real_index floored,

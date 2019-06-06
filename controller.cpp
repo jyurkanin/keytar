@@ -1,29 +1,32 @@
 #include "controller.h"
 
+int Controller::controllerFD;
+pthread_t Controller::c_thread;
+Controller *Controller::active_controller;
 
 unsigned char Controller::get_slider(int index){
-  return controller.slider[index];
+  return slider[index];
 }
 
 unsigned char Controller::get_knob(int index){
-  return controller.knob[index];
+  return knob[index];
 }
 
-unsigned char Controller::get_big_slide(){
-  return controller.big_slider;
+unsigned char Controller::get_big_slider(){
+  return big_slider;
 }
 
 unsigned char Controller::get_big_knob(){
-  return controller.big_knob;
+  return big_knob;
 }
 
 unsigned char Controller::was_button_pressed(int index){
-  int length = (sizeof(controller.button)/sizeof(*(controller.button)));
+  int length = (sizeof(button)/sizeof(*(button)));
   if(index >= length){
     return 0;
   }
-  if(controller.button[index]){
-    controller.button[index] = 0;
+  if(button[index]){
+    button[index] = 0;
     return 127;
   }
   else{
@@ -31,17 +34,9 @@ unsigned char Controller::was_button_pressed(int index){
   }
 }
 
-unsigned char Controller::get_button_state(int index){
-  int length = (sizeof(controller.button)/sizeof(*(controller.button)));
-  if(index >= length){
-    return 0;
-  }
-  return controller.button[index];
-}
-
 unsigned char Controller::was_start_pressed(){
-  if(controller.start){
-    controller.start = 0;
+  if(start){
+    start = 0;
     return 127;
   }
   else{
@@ -50,8 +45,8 @@ unsigned char Controller::was_start_pressed(){
 }
 
 unsigned char Controller::was_stop_pressed(){
-  if(controller.stop){
-    controller.stop = 0;
+  if(stop){
+    stop = 0;
     return 127;
   }
   else{
@@ -60,8 +55,8 @@ unsigned char Controller::was_stop_pressed(){
 }
 
 unsigned char Controller::was_record_pressed(){
-  if(controller.record){
-    controller.record = 0;
+  if(record){
+    record = 0;
     return 127;
   }
   else{
@@ -70,8 +65,8 @@ unsigned char Controller::was_record_pressed(){
 }
 
 unsigned char Controller::was_loop_back_pressed(){
-  if(controller.loop_back){
-    controller.loop_back = 0;
+  if(loop_back){
+    loop_back = 0;
     return 127;
   }
   else{
@@ -80,8 +75,8 @@ unsigned char Controller::was_loop_back_pressed(){
 }
 
 unsigned char Controller::was_fastforward_pressed(){
-  if(controller.fastforward){
-    controller.fastforward = 0;
+  if(fastforward){
+    fastforward = 0;
     return 127;
   }
   else{
@@ -90,8 +85,8 @@ unsigned char Controller::was_fastforward_pressed(){
 }
 
 unsigned char Controller::was_rewind_pressed(){
-  if(controller.rewind){
-    controller.rewind = 0;
+  if(rewind){
+    rewind = 0;
     return 127;
   }
   else{
@@ -99,12 +94,24 @@ unsigned char Controller::was_rewind_pressed(){
   }
 }
 
+int Controller::has_new;
+
+int Controller::has_new_data(){
+  if(has_new){
+    has_new = 0;
+    return 1;
+  }
+  return 0;
+}
+
 void *Controller::read_controller(void *nothing){
   unsigned char c_byte;
-  MidiByte packet[4]; //wow I hate typedefs Im so sorry
+  unsigned char packet[4]; //wow I hate typedefs Im so sorry
+  has_new = 1;
   while(1){
     read(controllerFD, &packet, sizeof(packet));
     printf("controller %d %d %d %d\n", packet[0], packet[1], packet[2], packet[3]);
+    has_new = 1;
     
     if(packet[0] == PEDAL){
       if(packet[1] >= 3 && packet[1] <= 11){
