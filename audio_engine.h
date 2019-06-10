@@ -10,6 +10,7 @@
 #include "stk-4.6.0/include/BlitSquare.h"
 #include "stk-4.6.0/include/Generator.h"
 #include "stk-4.6.0/include/SineWave.h"
+#include "stk-4.6.0/include/Iir.h"
 #include "stk-4.6.0/include/Stk.h"
 #include <alsa/asoundlib.h>
 #include <math.h>

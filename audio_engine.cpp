@@ -14,6 +14,7 @@ std::vector<SynthAlg*> synth_algorithms;
 Controller main_controller;
 Sample sample;
 
+
 void breakOnMe(){
     //break me on, Break on meeeeeee
 }
@@ -34,6 +35,13 @@ Controller* getMainController(){
 
 void activate_main_controller(){
   main_controller.activate();
+}
+
+//freq normalized from 1-0
+float low_pass(float input, float freq){
+  static float  output = 0;
+  output += freq*(input-output);
+  return output;
 }
 
 float synthesize(int n, int t, int volume){
@@ -76,6 +84,7 @@ void addSynth(int alg){
 }
 
 void delSynth(int alg){
+  if(alg >= synth_algorithms.size()) return;
   SynthAlg* temp = synth_algorithms[alg];
   synth_algorithms.erase(synth_algorithms.begin()+alg);
   delete temp;
@@ -95,6 +104,8 @@ void *audio_thread(void *arg){
     int ip_algo = 0; //interpolation algorithm
     
     snd_pcm_state_t pcm_state;
+    int lowest_note;
+    int lowest_index;
     
     while(1){
         snd_pcm_wait(playback_handle, 100);
@@ -105,13 +116,13 @@ void *audio_thread(void *arg){
             continue;
         }
         frames_to_deliver = frames_to_deliver > 441 ? 441 : frames_to_deliver;
-
 	if(frames_to_deliver == 0){
 	  continue;
 	}
 	
         memset(sum_frames, 0, CHANNELS*441*sizeof(float));
         num_pressed = 0;
+	lowest_note = 0;
         for(int k = 21; k <= 108; k++){
             if(midiNotesPressed[k] || midiNotesSustained[k]){
                 num_pressed++;
@@ -122,7 +133,11 @@ void *audio_thread(void *arg){
                     adsr[k].keyOn();
                     sample.index[k] = 0;
                 }
-                
+
+		if(!lowest_note){
+		  lowest_note = k;
+		  lowest_index = sample.index[k];
+		}
                 for(int j = 0; j < frames_to_deliver; j++){
 		  sum_frames[j] += adsr[k].tick(synthesize(k, sample.index[k], sample.volume[k]));
 		  sample.index[k]++;
@@ -134,21 +149,28 @@ void *audio_thread(void *arg){
 		    printf("Key OFF\n");
                     adsr[k].keyOff();
                 }
-
+		
+		if(!lowest_note){
+		  lowest_note = k;
+		  lowest_index = sample.index[k];
+		}
                 for(int j = 0; j < frames_to_deliver; j++){
 		    sum_frames[j] += adsr[k].tick(synthesize(k, sample.index[k], sample.volume[k]));
                     sample.index[k]++;
                 }
-                
+		
                 if(adsr[k].getState() == stk::ADSR::IDLE){
                     sample.index[k] = 0;
                 }
             }
         }
-        
+	
+	//	for(int j = 0; j < frames_to_deliver; j++){
+	//  sum_frames[j] = main_controller.get_knob(0)/128.0;//low_pass(sum_frames[j], main_controller.get_knob(0)/128.0);
+	//}
+	
         if(num_pressed){
-	    set_wave_buffer(0, sum_frames);
-	    //printf("what kinda frames ya got %d\n", frames_to_deliver);
+	    set_wave_buffer(lowest_note, lowest_index, frames_to_deliver, sum_frames);
             while((err = snd_pcm_writei (playback_handle, sum_frames, frames_to_deliver)) != frames_to_deliver) {
                 snd_pcm_prepare (playback_handle);
                 pcm_state = snd_pcm_state(playback_handle);
@@ -180,8 +202,8 @@ int init_midi(int argc, char *argv[]){
         adsr[k].setAllTimes(.1, .1, 1, .1);
         adsr[k].set_filters(attack, decay, sustain, release);
     }
+    
     pthread_create(&m_thread, NULL, &audio_thread, NULL);
-
     main_controller.activate();
     return Controller::init_controller(argc, argv);
 }
@@ -239,6 +261,7 @@ int init_alsa(){
     snd_pcm_get_params(playback_handle, &buf_size, &period_size);
     //printf("%d derp %d\n", buf_size, period_size);    
     snd_pcm_prepare(playback_handle);
+    
     return EXIT_SUCCESS;
 }
 
@@ -253,13 +276,12 @@ static int sustain = 0;
   MidiByte packet[4];
     
   read(MidiFD, &packet, sizeof(packet));//sizeof(packet));
-  printf("keyboard %d %d %d\n", packet[0], packet[1], packet[2]);
+  //  printf("keyboard %d %d %d\n", packet[0], packet[1], packet[2]);
   
   switch(packet[0]){
   case(MIDI_NOTE_OFF):
     if(sustain > 64){
-      midiNotesSustained[packet[1]] = midiNotesPressed[packet[1]];
-      printf("SUSTAINING\n");
+      midiNotesSustained[packet[1]] = midiNotesPressed[packet[1]];      
     }
     midiNotesPressed[packet[1]] = 0;
     break;

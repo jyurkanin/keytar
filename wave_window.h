@@ -29,7 +29,7 @@
 
 
 void init_window();
-void set_wave_buffer(int,float*);
+void set_wave_buffer(int,int,int,float*);
 int  is_window_open();
 void *sy_window_thread(void*);
 void plot_wave(int, float);

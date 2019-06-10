@@ -40,21 +40,26 @@ void SwordAlg::getControlMap(char**& mapping, int& len){
 
 
 float FmSimpleAlg::tick(float freq, int t){
-  float mo = sin((freq*t*OMEGA) + (controller.get_slider(0)*controller.get_knob(0)*.03125));
+  float mod_freq = (controller.get_slider(0)/4) + (controller.get_knob(0)/128.0);
+  float mo = sin(freq*t*OMEGA*mod_freq);
   return sin(freq*t*OMEGA + controller.get_slider(1)*controller.get_knob(1)*mo*.0078125);
 }
 void FmSimpleAlg::getControlMap(char**& mapping, int& len){
-  sprintf(mapping[0], "silder(0)*knob(0)*.1 = MOD_FREQ = %f", controller.get_slider(0)*controller.get_knob(0)/32.0);
-  sprintf(mapping[1], "silder(1)*knob(1)*.1 = LIN_GAIN = %f", controller.get_slider(1)*controller.get_knob(1)/128.0);
+  float mod_freq = (controller.get_slider(0)/4) + (controller.get_knob(0)/128.0);
+  sprintf(mapping[0], "MOD_FREQ = %f", mod_freq);
+  sprintf(mapping[1], "LIN_GAIN = %f", controller.get_slider(1)*controller.get_knob(1)/128.0);
   len = 2;
 }
 
 float SinAlg::tick(float freq, int t){
-  return sin(t*OMEGA*freq*controller.get_slider(0)*controller.get_knob(0)*.0078125);
+  float mod_freq = (controller.get_slider(0)/4) + (controller.get_knob(0)/128.0);
+  return sin(t*OMEGA*freq*mod_freq);
 }
 void SinAlg::getControlMap(char**& mapping, int& len){
-  sprintf(mapping[0], "silder(0)*knob(0)*.1 = MOD_FREQ = %f", controller.get_slider(0)*controller.get_knob(0)*.0078125);
-  len = 1;
+  float mod_freq = (controller.get_slider(0)/4) + (controller.get_knob(0)/128.0);
+  sprintf(mapping[0], "Octave = %d", controller.get_slider(0)/4);
+  sprintf(mapping[1], "Detune = %f", controller.get_knob(0)/128.0);
+  len = 2;
 }
 
 

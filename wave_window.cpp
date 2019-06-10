@@ -3,6 +3,7 @@
 #include <X11/Xutil.h>
 #include <X11/Xatom.h>
 #include <ctype.h>
+#include <queue>
 
 Display *dpy;
 Window w;
@@ -19,7 +20,11 @@ int speed = 1;
 int buf_write_index=0;
 int buf_read_index=0;
 int is_buf_empty=0;
-float wave_buffer[W_BUF_SIZE];
+//float wave_buffer[W_SAMPLE_LEN];
+//int wave_buffer_len;
+int wave_period;
+std::queue<float> wave_buffer;
+
 int is_window_alive;
 
 
@@ -46,22 +51,53 @@ void init_window(){
     pthread_create(&w_thread, NULL, &sy_window_thread, NULL);    
 }
 
-void set_wave_buffer(int plot, float * values){ //got to increment the write index, advance end of ring buffer
-//    printf("%d\t%d\n", buf_write_index, buf_read_index);
-    if(is_buf_empty){
-        memcpy(wave_buffer, values, sizeof(float)*W_SAMPLE_LEN);
-        buf_write_index = 1; //write index is the end of the ring buffer
-        buf_read_index = 0; //read index is the start of the ring buffer
-        is_buf_empty = 0;
+/*void set_wave_buffer2(int len, float* values){ //values is W_SAMPLE_LEN long
+  static int toggle = 0;
+
+  if(toggle){
+    if(wave_buffer.size() > (4*MAX_PLOT_LENGTH)){
+      toggle = 0; //too big. toggle dont recieve any more until queue is empty
     }
-    else if(buf_write_index != buf_read_index){
-        memcpy(wave_buffer+(buf_write_index*W_SAMPLE_LEN), values, sizeof(float)*W_SAMPLE_LEN);
-        buf_write_index++; //write index is the end of the ring buffer
-        buf_write_index = buf_write_index % NUM_SAMPLES;
+  }
+  else{
+    if(wave_buffer.size() < MAX_PLOT_LENGTH){
+      toggle = 1;
     }
-    else if(buf_write_index == buf_read_index){ //buffer is full
-        //do nothing, I think.
+  }
+  
+  if(toggle){
+    for(int i = 0; i < len; i++){
+      wave_buffer.push(values[i]);
     }
+  }
+  }*/
+
+void set_wave_buffer(int n, int t, int buf_len, float* values){ //values is W_SAMPLE_LEN long
+  float freqs[12] = {27.5, 29.135, 30.868, 32.703, 34.648, 36.708, 38.891, 41.203, 43.654, 46.249, 48.999, 51.913}; // frequencies of the lowest octave
+  float freq = freqs[(n-21) % 12] * (1 << (1+(int)(n-21)/12));
+  
+  int period = wave_period = (int)(44100/freq);
+  int start = period - (t%period);
+  int len = ((buf_len-start)/period)*period; //only copy multiples of the period length.
+  
+  static int toggle = 0;
+
+  if(toggle){
+    if(wave_buffer.size() > (4*MAX_PLOT_LENGTH)){
+      toggle = 0; //too big. toggle dont recieve any more until queue is empty
+    }
+  }
+  else{
+    if(wave_buffer.size() < 2*MAX_PLOT_LENGTH){ //make sure the window always has something to display.
+      toggle = 1;
+    }
+  }
+  
+  if(toggle){
+    for(int i = 0; i < len; i++){
+      wave_buffer.push(values[i+start]);
+    }
+  }
 }
 
 int is_window_open(){
@@ -115,7 +151,7 @@ void *sy_window_thread(void * arg){
     //int start_index, end_index;
     XEvent e;
     char buf[2];
-    speed = 1;
+    speed = 4;
 
     char status_msg[50];
     char cmd_state = MAIN_STATE;
@@ -137,75 +173,75 @@ void *sy_window_thread(void * arg){
 	break;
       }
       
-        if(XPending(dpy) > 0){
-            XNextEvent(dpy, &e);
-            if(e.type == KeyPress){
-                XLookupString(&e.xkey, buf, 1, NULL, NULL);
-
-		switch(cmd_state){
-		case MAIN_STATE:
-		  if(isdigit(buf[0])){ //switch oscillator, 0-9
-		    sscanf(buf, "%d", &synth_num);
-		    synth = getSynth(synth_num);
-		    if(synth){
-		      synth->controller.activate();
-		      cmd_state = SYNTH_STATE;
-		    }
-		  }
-		  else{
-		    switch(buf[0]){
-		    case '+':
-		      speed *= 2;
-		      break;
-		    case '-':
-		      speed /= 2;
-		      if(speed == 0) speed = 1;
-		      break;
-		    case 'd': //delete a synthalg
-		      alg_num = get_num();
-		      delSynth(alg_num);
-		      break;
-		    case 'a': //add a new synthalg
-		      cmd_state = SYNTH_STATE;
-		      clear_left();
-		      draw_synth_selection_window();
-		      XFlush(dpy);
-		      
-		      alg_num = get_num(); //get number from user
-		      addSynth(alg_num);
-		      synth = getSynth(getNumAlgorithms()-1);
-		      printf("Num Synths %d\n", getNumAlgorithms());
-		      synth->controller.activate();
-		      draw_synth_params(synth);
-		      break;
-		    case 'q': //quit
-		      del_window();
-		      return 0;
-		    }
-		  }
-		  break;
-		  
-		case SYNTH_STATE:
-		  switch(buf[0]){
-		  case 'x':
-		    cmd_state = MAIN_STATE;
-		    activate_main_controller();
-		    draw_main_params();
-		    break;
-		  case '+':
-		    speed *= 2;
-		    break;
-		  case '-':
-		    speed /= 2;
-		    if(speed == 0) speed = 1;
-		    break;
-		  }
-		  break;
-		}
-            }        
-        }
-	XFlush(dpy);
-	usleep(1000);
+      if(XPending(dpy) > 0){
+	XNextEvent(dpy, &e);
+	if(e.type == KeyPress){
+	  XLookupString(&e.xkey, buf, 1, NULL, NULL);
+	  
+	  switch(cmd_state){
+	  case MAIN_STATE:
+	    if(isdigit(buf[0])){ //switch oscillator, 0-9
+	      sscanf(buf, "%d", &synth_num);
+	      synth = getSynth(synth_num);
+	      if(synth){
+		synth->controller.activate();
+		draw_synth_params(synth);
+		cmd_state = SYNTH_STATE;
+	      }
+	    }
+	    else{
+	      switch(buf[0]){
+	      case '+':
+		speed *= 2;
+		break;
+	      case '-':
+		speed /= 2;
+		if(speed == 0) speed = 1;
+		break;
+	      case 'd': //delete a synthalg
+		alg_num = get_num();
+		delSynth(alg_num);
+		break;
+	      case 'a': //add a new synthalg
+		cmd_state = SYNTH_STATE;
+		clear_left();
+		draw_synth_selection_window();
+		XFlush(dpy);
+		
+		alg_num = get_num(); //get number from user
+		addSynth(alg_num);
+		synth = getSynth(getNumAlgorithms()-1);
+		synth->controller.activate();
+		draw_synth_params(synth);
+		break;
+	      case 'q': //quit
+		del_window();
+		return 0;
+	      }
+	    }
+	    break;
+	    
+	  case SYNTH_STATE:
+	    switch(buf[0]){
+	    case 'x':
+	      cmd_state = MAIN_STATE;
+	      activate_main_controller();
+	      draw_main_params();
+	      break;
+	    case '+':
+	      speed *= 2;
+	      break;
+	    case '-':
+	      speed /= 2;
+	      if(speed == 0) speed = 1;
+	      break;
+	    }
+	    break;
+	  }
+	}        
+      }
+      XFlush(dpy);
+      usleep(1000);
     }
 }
 
@@ -246,9 +282,17 @@ void draw_main_params(){
     }
 
     memset(line, 0, 60);
-    sprintf(line, "[Alg|Knob|Slider] [%-10s|%3d|%3d]", name, main->get_knob(i), main->get_slider(i));
+    sprintf(line, "[Alg|Volume] [%-10s|%3d]", name, main->get_slider(i));
     XDrawString(dpy, w, gc, 1, (12*i) + 16, line, 38);
   }
+
+  memset(line, 32, 60);
+  sprintf(line, "[Low Pass Frequency|%f]", main->get_knob(0) * 44100.0 / 128.0);
+  XDrawString(dpy, w, gc, 1, 130, line, 38);
+
+  memset(line, 32, 60);
+  sprintf(line, "[Speed|%d]", speed);
+  XDrawString(dpy, w, gc, 1, 142, line, 38);
 }
 
 void draw_synth_params(SynthAlg* synth){
@@ -274,7 +318,7 @@ void draw_synth_params(SynthAlg* synth){
 
 void draw_main_window(){
   draw_border();
-  //draw_wave(0); //top right
+  draw_wave(0); //top right
   //draw_fft();   //bottom right
   if(Controller::has_new_data()) draw_main_params();
   XFlush(dpy);
@@ -282,7 +326,7 @@ void draw_main_window(){
 
 void draw_synth_window(SynthAlg *synth){
   draw_border();
-  //draw_wave(0); //top right
+  draw_wave(0); //top right
   //  draw_fft();   //bottom right
   if(Controller::has_new_data()) draw_synth_params(synth);
   XFlush(dpy);
@@ -327,49 +371,31 @@ void clear_bottom_right(){
 //clears top right
 void clear_wave(){
     XSetForeground(dpy, gc, 0);
-    XFillRectangle(dpy, w, gc, MAX_PLOT_LENGTH + 2, 1, MAX_PLOT_LENGTH, MAX_PLOT_WIDTH);
+    XFillRectangle(dpy, w, gc, MAX_PLOT_LENGTH + 3, 1, MAX_PLOT_LENGTH, MAX_PLOT_WIDTH);
 }
 
-void draw_wave(int plot_num){
+/*void draw_wave2(int plot){
   float avg_value = 0;
-  
   int sleep_time = (int) (1000000.0*(speed/44100.0));
-  if(is_buf_empty){
-    for(int i = 0; i < W_SAMPLE_LEN; i++){
-      avg_value += wave_buffer[i];
-      if((i % speed) == 0){
-	clear_wave();
-	plot_wave(plot_num, avg_value / speed);
-	avg_value = 0;
-      }
-    }
-    usleep(sleep_time);
+  int counter = 0;
+  
+  while(!wave_buffer.empty()){
+    printf("wave buffer size %ld\n", wave_buffer.size());
+    clear_wave();
+    plot_wave(plot, wave_buffer.front());//avg_value / speed);
+    avg_value = 0;
+    usleep(100000);
   }
-  else{
-    start_index[plot_num] = W_SAMPLE_LEN*buf_read_index;
-    end_index[plot_num] = W_SAMPLE_LEN*(buf_read_index + 1);
-    for(int i = start_index[plot_num]; i < end_index[plot_num]; i++){
-      avg_value += wave_buffer[i];
-      if((i % speed) == 0){
-	clear_wave();
-	plot_wave(plot_num, avg_value / speed);
-	avg_value = 0;
-	usleep(sleep_time);
-      }
-    }
-    
-    buf_read_index++;
-    buf_read_index = buf_read_index % NUM_SAMPLES;
-    if(buf_read_index == buf_write_index){
-      is_buf_empty = 1;
-      memset(wave_buffer, 0, sizeof(float)*W_SAMPLE_LEN);
-    }
-  }
+  }*/
+
+void draw_wave(int plot){
+  clear_wave();
+  plot_wave(plot, 0);//avg_value / speed);
 }
 
 void draw_fft(){
   float *fft_plots = new float[W_SAMPLE_LEN];  
-  calc_fft(wave_buffer, fft_plots, W_SAMPLE_LEN);
+  //calc_fft(wave_buffer, fft_plots, W_SAMPLE_LEN);
   int ind;
   int ind_prev;
   
@@ -384,9 +410,55 @@ void draw_fft(){
   delete fft_plots;
 }
 
+void plot_wave(int plot_num, float value){
+    unsigned long _color_map[] = {0xFF,0xFF00,0xFF0000};
+    int offset_x = SCREEN_WIDTH/2 + 1;
+    int offset_y = SCREEN_HEIGHT/4;
+    int temp = MAX_PLOT_LENGTH < wave_buffer.size() ? MAX_PLOT_LENGTH : wave_buffer.size(); //get the limiting factor
+    int display_len = wave_period == 0 ? 0 : (temp/wave_period)*wave_period; //make it a multiple of the period.
+
+    usleep(100000);
+    XSetForeground(dpy, gc, _color_map[plot_num]);
+    
+    float point;
+    float prev_point = 0;
+    for(int i = 1; i < display_len; i++){
+      point = wave_buffer.front();
+      wave_buffer.pop();
+      //        XFillRectangle(dpy, w, gc, i, (int) 64 + 63*plots[plot_num][ind], 1, 1);
+      XDrawLine(dpy, w, gc, i + offset_x, (int) offset_y + (SCREEN_HEIGHT/4)*point, i-1 + offset_x, (int) offset_y + (SCREEN_HEIGHT/4)*prev_point);
+      //XDrawLine(dpy, w, gc, i, (int) 64 + 63*plots[plot_num][ind], i, 64);
+      prev_point = point;
+    }
+    XFlush(dpy);
+}
+
+
+/*void plot_wave2(int plot_num, float value){
+    unsigned long _color_map[] = {0xFF,0xFF00,0xFF0000};
+    int offset_x = SCREEN_WIDTH/2 + 1;
+    int offset_y = SCREEN_HEIGHT/4;
+    
+    XSetForeground(dpy, gc, _color_map[plot_num]);
+    float point = wave_buffer.front();
+    wave_buffer.pop();
+    
+    float prev_point = point;
+    for(int i = 1; i < MAX_PLOT_LENGTH && i < wave_buffer.size(); i++){
+      point = wave_buffer.front();
+      wave_buffer.pop();
+      //        XFillRectangle(dpy, w, gc, i, (int) 64 + 63*plots[plot_num][ind], 1, 1);
+      XDrawLine(dpy, w, gc, i + offset_x, (int) offset_y + (SCREEN_HEIGHT/4)*point, i-1 + offset_x, (int) offset_y + (SCREEN_HEIGHT/4)*prev_point);
+      //XDrawLine(dpy, w, gc, i, (int) 64 + 63*plots[plot_num][ind], i, 64);
+      prev_point = point;
+    }
+    XFlush(dpy);
+}*/
+
+
 /*
  * This plots a single point and moves the entire wave over.
- */
+ *
 void plot_wave(int plot_num, float value){
     unsigned long _color_map[] = {0xFF,0xFF00,0xFF0000};
     plots[plot_num][start_index[plot_num]] = value;
@@ -400,7 +472,7 @@ void plot_wave(int plot_num, float value){
     
     XSetForeground(dpy, gc, _color_map[plot_num]);
     ind_prev = start_index[plot_num] % MAX_PLOT_LENGTH;
-    for(int i = 1; i < MAX_PLOT_LENGTH-1; i++){
+    for(int i = 1; i < MAX_PLOT_LENGTH; i++){
         ind = (start_index[plot_num] + i) % MAX_PLOT_LENGTH;
 //        XFillRectangle(dpy, w, gc, i, (int) 64 + 63*plots[plot_num][ind], 1, 1);
         XDrawLine(dpy, w, gc, i + offset_x, (int) offset_y + (SCREEN_HEIGHT/4)*plots[plot_num][ind], i-1 + offset_x, (int) offset_y + (SCREEN_HEIGHT/4)*plots[plot_num][ind_prev]);
@@ -408,7 +480,7 @@ void plot_wave(int plot_num, float value){
         ind_prev = ind;
     }
     XFlush(dpy);
-}
+    }*/
 
 void del_window(){
     XDestroyWindow(dpy, w);

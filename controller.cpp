@@ -110,7 +110,6 @@ void *Controller::read_controller(void *nothing){
   has_new = 1;
   while(1){
     read(controllerFD, &packet, sizeof(packet));
-    printf("controller %d %d %d %d\n", packet[0], packet[1], packet[2], packet[3]);
     has_new = 1;
     
     if(packet[0] == PEDAL){
