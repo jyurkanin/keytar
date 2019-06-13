@@ -10,6 +10,7 @@
 
 class Controller{
  public:
+  Controller();
   void activate();
   unsigned char get_slider(int index);
   unsigned char get_knob(int index);
@@ -24,12 +25,12 @@ class Controller{
   unsigned char was_rewind_pressed();
   static int has_new_data();
   static int init_controller(int argc, char *argv[]);
-  static int exit_controller();  
- private:
-  static void *read_controller(void *nothing);
+  static int exit_controller();
   unsigned char slider[9];
   unsigned char knob[9];
   unsigned char button[9];
+ private:
+  static void *read_controller(void *nothing);
   unsigned char start;
   unsigned char stop;
   unsigned char record;

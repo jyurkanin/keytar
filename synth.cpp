@@ -32,7 +32,7 @@ float SwordAlg::tick(float freq, int t){
   return sin(freq*t*OMEGA + controller.get_slider(1)*controller.get_knob(1)*.0078125*mo);
 }
 //mapping will be size 18 and len will say how short it actually is
-void SwordAlg::getControlMap(char**& mapping, int& len){
+void SwordAlg::getControlMap(char mapping[18][50], int& len){
   sprintf(mapping[0], "silder(0)*knob(0)/32 = MOD_FREQ = %f", controller.get_slider(0)*controller.get_knob(0)*.03125);
   sprintf(mapping[1], "silder(1)*knob(1)/128 = LIN_GAIN = %f", controller.get_slider(1)*controller.get_knob(1)*.0078125);
   len = 2;
@@ -40,24 +40,24 @@ void SwordAlg::getControlMap(char**& mapping, int& len){
 
 
 float FmSimpleAlg::tick(float freq, int t){
-  float mod_freq = (controller.get_slider(0)/4) + (controller.get_knob(0)/128.0);
+  float mod_freq = (controller.get_slider(0)*.25*controller.get_knob(0)/128.0);
   float mo = sin(freq*t*OMEGA*mod_freq);
   return sin(freq*t*OMEGA + controller.get_slider(1)*controller.get_knob(1)*mo*.0078125);
 }
-void FmSimpleAlg::getControlMap(char**& mapping, int& len){
-  float mod_freq = (controller.get_slider(0)/4) + (controller.get_knob(0)/128.0);
+void FmSimpleAlg::getControlMap(char mapping[18][50], int& len){
+  float mod_freq = (controller.get_slider(0)*.25*controller.get_knob(0)/128.0);
   sprintf(mapping[0], "MOD_FREQ = %f", mod_freq);
   sprintf(mapping[1], "LIN_GAIN = %f", controller.get_slider(1)*controller.get_knob(1)/128.0);
   len = 2;
 }
 
 float SinAlg::tick(float freq, int t){
-  float mod_freq = (controller.get_slider(0)/4) + (controller.get_knob(0)/128.0);
+  float mod_freq = ((controller.get_slider(0)/8)*.5) + (controller.get_knob(0)/128.0);
   return sin(t*OMEGA*freq*mod_freq);
 }
-void SinAlg::getControlMap(char**& mapping, int& len){
-  float mod_freq = (controller.get_slider(0)/4) + (controller.get_knob(0)/128.0);
-  sprintf(mapping[0], "Octave = %d", controller.get_slider(0)/4);
+void SinAlg::getControlMap(char mapping[18][50], int& len){
+  float mod_freq = ((controller.get_slider(0)/8)*.5) + (controller.get_knob(0)/128.0);
+  sprintf(mapping[0], "Octave = %f", (controller.get_slider(0)/8)*.5);
   sprintf(mapping[1], "Detune = %f", controller.get_knob(0)/128.0);
   len = 2;
 }
@@ -97,7 +97,8 @@ void WaveTableAlg::setData(unsigned char* data, int len){
   
 }
 
-void WaveTableAlg::getControlMap(char**& mapping, int& len){
+void WaveTableAlg::getControlMap(char mapping[18][50], int& len){
+  
   sprintf(mapping[0], "knob(8)/128 = WAVE_TABLE_SWEEP_FREQ = %f", controller.get_knob(8)/4.0);
   sprintf(mapping[1], "silder(8) = ? = %d", controller.get_slider(8));
   for(int i = 0; i < 8; i++){

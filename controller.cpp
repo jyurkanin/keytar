@@ -1,8 +1,27 @@
 #include "controller.h"
+#include <string.h>
+#include <fcntl.h>
+#include <queue>
+#include "wave_window.h"
+#include <sys/ioctl.h>
 
 int Controller::controllerFD;
 pthread_t Controller::c_thread;
 Controller *Controller::active_controller;
+
+Controller::Controller(){
+  memset(slider, 0, 9*sizeof(unsigned char));
+  memset(knob, 0, 9*sizeof(unsigned char));
+  memset(button, 0, 9*sizeof(unsigned char));
+  start = 0;
+  stop = 0;
+  record = 0;
+  loop_back = 0;
+  fastforward = 0;
+  rewind = 0;
+  big_slider = 0;
+  big_knob = 0;
+}
 
 unsigned char Controller::get_slider(int index){
   return slider[index];
@@ -108,8 +127,24 @@ void *Controller::read_controller(void *nothing){
   unsigned char c_byte;
   unsigned char packet[4]; //wow I hate typedefs Im so sorry
   has_new = 1;
-  while(1){
-    read(controllerFD, &packet, sizeof(packet));
+  std::queue<unsigned char> incoming;
+  unsigned char temp;
+  while(is_window_open()){
+    if(read(controllerFD, &temp, sizeof(temp)) <= 0){
+      usleep(10);
+      continue;
+    }
+    else{
+      incoming.push(temp);
+    }
+    
+    if(incoming.size() >= 3){
+      packet[0] = incoming.front(); incoming.pop();
+      packet[1] = incoming.front(); incoming.pop();
+      packet[2] = incoming.front(); incoming.pop();
+    }
+    else continue;
+    
     has_new = 1;
     
     if(packet[0] == PEDAL){
@@ -152,6 +187,8 @@ void *Controller::read_controller(void *nothing){
       }
     }
   }
+  printf("Controller Thread is DEADBEEF\n");
+  return NULL;
 }
 
 //this sets this controller to the one being written to by the
@@ -162,7 +199,12 @@ void Controller::activate(){
 
 int Controller::init_controller(int argc, char *argv[]){
   char *midi_controller = argv[2];
+  int flags;
   controllerFD = open(midi_controller, O_RDONLY);
+
+  flags = fcntl(controllerFD, F_GETFL, 0);
+  fcntl(controllerFD, F_SETFL, flags | O_NONBLOCK);
+  
   if(controllerFD < 0){
     printf("Couldn't open device %s\n", midi_controller);
     exit(-1);

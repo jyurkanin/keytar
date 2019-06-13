@@ -15,9 +15,10 @@ class SynthAlg{
   Controller controller;
   SynthAlg(int s) : s_func(s){}
   virtual float tick(float freq, int t) = 0;
-  virtual void getControlMap( char**& mapping, int& len) = 0; //this is for printing out which knobs/sliders do what in the synth_state menu
+  virtual void getControlMap( char mapping[18][50], int& len) = 0; //this is for printing out which knobs/sliders do what in the synth_state menu
   virtual void getSynthName(char name[20]);
   virtual void setData(unsigned char* data, int len) = 0;
+  virtual ~SynthAlg(){};
   static const int SIN_ALG = 0;
   static const int SWORD_ALG = 1;
   static const int FM_SIMPLE_ALG = 2;
@@ -27,32 +28,36 @@ class SynthAlg{
 class SinAlg : public SynthAlg{
  public:
   SinAlg() : SynthAlg(0){};
+  ~SinAlg(){};
   float tick(float freq, int t);
-  void getControlMap( char**& mapping, int& len);
+  void getControlMap( char mapping[18][50], int& len);
   void setData(unsigned char* data, int len){}
 };
 
 class SwordAlg : public SynthAlg{
  public:
   SwordAlg() : SynthAlg(1){};
+  ~SwordAlg(){};
   float tick(float freq, int t);
-  void getControlMap( char**& mapping, int& len);
+  void getControlMap( char mapping[18][50], int& len);
   void setData(unsigned char* data, int len){}
 };
 
 class FmSimpleAlg : public SynthAlg{
  public:
   FmSimpleAlg() : SynthAlg(2){};
+  ~FmSimpleAlg(){};
   float tick(float freq, int t);
-  void getControlMap( char**& mapping, int& len);
+  void getControlMap( char mapping[18][50], int& len);
   void setData(unsigned char* data, int len){}
 };
 
 class WaveTableAlg : public SynthAlg{
  public:
   WaveTableAlg() : SynthAlg(3){};
+  ~WaveTableAlg(){};
   float tick(float freq, int t);
-  void getControlMap( char**& mapping, int& len);
+  void getControlMap( char mapping[18][50], int& len);
   void setData(unsigned char* data, int len);
  private:
   int inter = 1;

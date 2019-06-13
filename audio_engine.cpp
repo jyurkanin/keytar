@@ -1,9 +1,15 @@
 #include "audio_engine.h"
+#include <fstream>
+#include <iostream>
+#include <fcntl.h>
 #include <vector>
+#include <queue>
+#include <sys/ioctl.h>
 
 ADSR_S adsr[128];
 snd_pcm_t *playback_handle;
 pthread_t m_thread;
+pthread_t piano_midi_thread;
 int MidiFD;
 MidiByte midiNotesPressed[0xFF]; /* this records all the notes currently on by pitch maximum notes on is KEYS*/
 MidiByte midiNotesSustained[0xFF];
@@ -17,6 +23,73 @@ Sample sample;
 
 void breakOnMe(){
     //break me on, Break on meeeeeee
+}
+
+void save_program(char* filename){
+  char file_path[110];
+  sprintf(file_path, "programs/%s", filename);
+  std::ofstream out;
+  out.open(file_path, std::ofstream::out);
+  
+  out << synth_algorithms.size() << "\n";
+  
+  for(int i = 0; i < synth_algorithms.size(); i++){
+    out << synth_algorithms[i]->s_func << "\n";
+  }
+
+  unsigned char slider[9];
+  unsigned char knob[9];
+  
+  memcpy(slider, main_controller.slider, sizeof(slider));
+  memcpy(knob, main_controller.knob, sizeof(knob));
+  out << slider[0] << " " << slider[1] << " " <<  slider[2] << " " << slider[3] << " " << slider[4] << " " << slider[5] << " " << slider[6] << " " << slider[7] << " " << slider[8] << " ";
+  out << knob[0] << " " << knob[1] << " " <<  knob[2] << " " << knob[3] << " " << knob[4] << " " << knob[5] << " " << knob[6] << " " << knob[7] << " " << knob[8] << "\n";
+  
+  for(int i = 0; i < synth_algorithms.size(); i++){
+    memcpy(slider, synth_algorithms[i]->controller.slider, sizeof(slider));
+    memcpy(knob, synth_algorithms[i]->controller.knob, sizeof(knob));
+    out << slider[0] << " " << slider[1] << " " <<  slider[2] << " " << slider[3] << " " << slider[4] << " " << slider[5] << " " << slider[6] << " " << slider[7] << " " << slider[8] << " ";
+    out << knob[0] << " " << knob[1] << " " <<  knob[2] << " " << knob[3] << " " << knob[4] << " " << knob[5] << " " << knob[6] << " " << knob[7] << " " << knob[8] << "\n";
+  }
+
+  out.close();
+}
+
+void load_program(char* filename){
+  for(int i = 0; i < synth_algorithms.size(); i++){
+    delete synth_algorithms[i];
+  }  
+  synth_algorithms.clear();
+  
+  std::ifstream in;
+  char file_path[110];
+  sprintf(file_path, "programs/%s", filename);
+  in.open(file_path, std::ifstream::in);
+  int num;
+  in >> num; //whitespace delimited
+
+  int temp;
+  for(int i = 0; i < num; i++){
+    in >> temp;
+    addSynth(temp);
+  }
+
+  for(int j = 0; j < 9; j++){
+    in >> main_controller.slider[j];
+  }
+  for(int j = 0; j < 9; j++){
+    in >> main_controller.knob[j];
+  }
+  
+  for(int i = 0; i < num; i++){
+    for(int j = 0; j < 9; j++){
+      in >> synth_algorithms[i]->controller.slider[j];
+    }
+    for(int j = 0; j < 9; j++){
+      in >> synth_algorithms[i]->controller.knob[j];
+    }
+  }
+  
 }
 
 int getNumAlgorithms(){
@@ -107,7 +180,7 @@ void *audio_thread(void *arg){
     int lowest_note;
     int lowest_index;
     
-    while(1){
+    while(is_window_open()){
         snd_pcm_wait(playback_handle, 100);
         frames_to_deliver = snd_pcm_avail_update(playback_handle);
         if ( frames_to_deliver == -EPIPE){
@@ -117,6 +190,7 @@ void *audio_thread(void *arg){
         }
         frames_to_deliver = frames_to_deliver > 441 ? 441 : frames_to_deliver;
 	if(frames_to_deliver == 0){
+	  printf("zeruh\n");
 	  continue;
 	}
 	
@@ -168,25 +242,39 @@ void *audio_thread(void *arg){
 	//	for(int j = 0; j < frames_to_deliver; j++){
 	//  sum_frames[j] = main_controller.get_knob(0)/128.0;//low_pass(sum_frames[j], main_controller.get_knob(0)/128.0);
 	//}
-	
+
+	//ODDLY it reduces computational load a shit ton when this is allwed to run all the time. IDK bruh
         if(num_pressed){
 	    set_wave_buffer(lowest_note, lowest_index, frames_to_deliver, sum_frames);
-            while((err = snd_pcm_writei (playback_handle, sum_frames, frames_to_deliver)) != frames_to_deliver) {
-                snd_pcm_prepare (playback_handle);
-                pcm_state = snd_pcm_state(playback_handle);
-                fprintf (stderr, "write to audio interface failed (%s)\n", snd_strerror (err));
-            }
-        }
-	else{
-	    snd_pcm_prepare (playback_handle);
+	
+	    while((err = snd_pcm_writei (playback_handle, sum_frames, frames_to_deliver)) != frames_to_deliver && is_window_open()) {
+	      snd_pcm_prepare (playback_handle);
+	      pcm_state = snd_pcm_state(playback_handle);
+	      fprintf (stderr, "write to audio interface failed (%s)\n", snd_strerror (err));
+	    }
 	}
+	else{
+	  usleep(100);
+	}
+	
+	//else{
+	//    snd_pcm_prepare (playback_handle); //Everytime I use prepare it leaks a shit ton of memory.
+	//}
     }
+    printf("Audio Thread is DEADBEEF\n");
 }
 
 int init_midi(int argc, char *argv[]){
-  char *MIDI_DEVICE = argv[1];    
+  char *MIDI_DEVICE = argv[1];
+  int flags;
   MidiFD = open(MIDI_DEVICE, O_RDONLY);
-  if(MidiFD  < 0){
+  
+  flags = fcntl(MidiFD, F_GETFL, 0);
+  if(fcntl(MidiFD, F_SETFL, flags | O_NONBLOCK)){
+    printf("A real bad ERror %d\n", errno);
+  }
+  
+  if(MidiFD < 0){
     printf("Error: Could not open device %s\n", MIDI_DEVICE);
     exit(-1);
   }
@@ -202,7 +290,8 @@ int init_midi(int argc, char *argv[]){
         adsr[k].setAllTimes(.1, .1, 1, .1);
         adsr[k].set_filters(attack, decay, sustain, release);
     }
-    
+
+    pthread_create(&piano_midi_thread, NULL, &midi_loop, NULL);
     pthread_create(&m_thread, NULL, &audio_thread, NULL);
     main_controller.activate();
     return Controller::init_controller(argc, argv);
@@ -210,9 +299,13 @@ int init_midi(int argc, char *argv[]){
 
 
 int exit_midi(){
-    pthread_join(m_thread, NULL);
-    close(MidiFD);
-    return Controller::exit_controller();
+  pthread_join(piano_midi_thread, NULL);
+  pthread_join(m_thread, NULL);
+  close(MidiFD);
+  for(int i = 0; i < synth_algorithms.size(); i++){
+    delete synth_algorithms[i];
+  }
+  return Controller::exit_controller();
 }
 
 int init_alsa(){
@@ -223,7 +316,7 @@ int init_alsa(){
     snd_pcm_sw_params_t *sw_params;
     snd_pcm_uframes_t buffer_size = 441;
     
-    //snd_pcm_open (&playback_handle, "hw:0,0", SND_PCM_STREAM_PLAYBACK, 0);
+    playback_handle = 0;
     if ((err = snd_pcm_open (&playback_handle, "default", SND_PCM_STREAM_PLAYBACK, 0)) < 0) {
         fprintf (stderr, "cannot open audio device %s\n", snd_strerror (err));
         return EXIT_FAILURE;
@@ -267,37 +360,56 @@ int init_alsa(){
 
 int exit_alsa(){
     snd_pcm_close (playback_handle);
+    snd_config_update_free_global();
     return EXIT_SUCCESS;
 }
 
-int midi_loop(){
-static int sustain = 0;
+void *midi_loop(void *ignoreme){
+  int sustain = 0;
   int bend = 64;
   MidiByte packet[4];
+  std::queue<unsigned char> incoming;
+  unsigned char temp;
+  while(is_window_open()){
+    if(read(MidiFD, &temp, sizeof(temp)) <= 0){
+      usleep(10);
+      continue;
+    }
+    else{
+      incoming.push(temp);
+    }
     
-  read(MidiFD, &packet, sizeof(packet));//sizeof(packet));
-  //  printf("keyboard %d %d %d\n", packet[0], packet[1], packet[2]);
-  
-  switch(packet[0]){
-  case(MIDI_NOTE_OFF):
-    if(sustain > 64){
-      midiNotesSustained[packet[1]] = midiNotesPressed[packet[1]];      
+    if(incoming.size() >= 3){
+      packet[0] = incoming.front(); incoming.pop();
+      packet[1] = incoming.front(); incoming.pop();
+      packet[2] = incoming.front(); incoming.pop();
     }
-    midiNotesPressed[packet[1]] = 0;
-    break;
-  case(MIDI_NOTE_ON):
-    midiNotesPressed[packet[1]] = packet[2];            
-    break;
-  case(PEDAL):
-    sustain = packet[2];
-    if(sustain < 64){
-      memset(midiNotesSustained, 0, sizeof(midiNotesSustained) * sizeof(midiNotesSustained[0]));
+    else continue;
+    
+    printf("keyboard %d %d %d\n", packet[0], packet[1], packet[2]);
+    
+    switch(packet[0]){
+    case(MIDI_NOTE_OFF):
+      if(sustain > 64){
+	midiNotesSustained[packet[1]] = midiNotesPressed[packet[1]];      
+      }
+      midiNotesPressed[packet[1]] = 0;
+      break;
+    case(MIDI_NOTE_ON):
+      midiNotesPressed[packet[1]] = packet[2];            
+      break;
+    case(PEDAL):
+      sustain = packet[2];
+      if(sustain < 64){
+	memset(midiNotesSustained, 0, sizeof(midiNotesSustained) * sizeof(midiNotesSustained[0]));
+      }
+      break;
+    case(PITCH_BEND):
+      bend = packet[2];
+      break;
     }
-    break;
-  case(PITCH_BEND):
-    bend = packet[2];
-    break;
   }
+  printf("Piano Thread is DEADBEEF\n");
   return 0;
 }
 

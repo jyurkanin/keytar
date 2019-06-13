@@ -23,7 +23,7 @@ int is_buf_empty=0;
 //float wave_buffer[W_SAMPLE_LEN];
 //int wave_buffer_len;
 int wave_period;
-std::queue<float> wave_buffer;
+std::deque<float> wave_buffer;
 
 int is_window_alive;
 
@@ -81,9 +81,9 @@ void set_wave_buffer(int n, int t, int buf_len, float* values){ //values is W_SA
   int len = ((buf_len-start)/period)*period; //only copy multiples of the period length.
   
   static int toggle = 0;
-
+  
   if(toggle){
-    if(wave_buffer.size() > (4*MAX_PLOT_LENGTH)){
+    if(wave_buffer.size() > (3*MAX_PLOT_LENGTH)){
       toggle = 0; //too big. toggle dont recieve any more until queue is empty
     }
   }
@@ -95,7 +95,7 @@ void set_wave_buffer(int n, int t, int buf_len, float* values){ //values is W_SA
   
   if(toggle){
     for(int i = 0; i < len; i++){
-      wave_buffer.push(values[i+start]);
+      wave_buffer.push_back(values[i+start]);
     }
   }
 }
@@ -107,26 +107,30 @@ int is_window_open(){
 void get_string(char* number){ //read the keyboard for a string
     XEvent e;
     char buf[2];
+    KeySym ks = 0;
     int count = 0;
     do{
         if(XPending(dpy) > 0){
             XNextEvent(dpy, &e);
             if(e.type == KeyPress){
-                XLookupString(&e.xkey, buf, 1, NULL, NULL);
+                XLookupString(&e.xkey, buf, 1, &ks, NULL);
+		if(ks == 0xFF0D) return;
 		number[count] = buf[0];
+		XDrawString(dpy, w, gc, (14+count)*8, MAX_PLOT_WIDTH, buf, 1);
+		XFlush(dpy);
 		count++;
             }
         }
-    } while(buf[0] != '\n');
+    } while(1);
 }
 
 int get_num(){ //read the keyboard for a number
     XEvent e;
-    KeySym ks;
-    char buf[2];
+    KeySym ks = 0;
+    char buf[2] = {0,0};
     char number[128];
     int count = 0;
-    int ret;
+    int ret = 0;
     do{
         if(XPending(dpy) > 0){
             XNextEvent(dpy, &e);
@@ -154,6 +158,7 @@ void *sy_window_thread(void * arg){
     speed = 4;
 
     char status_msg[50];
+    char filename[100];
     char cmd_state = MAIN_STATE;
     
     float *temp_wave;
@@ -214,7 +219,30 @@ void *sy_window_thread(void * arg){
 		synth->controller.activate();
 		draw_synth_params(synth);
 		break;
+	      case 's': //save
+		clear_left();
+		XSetForeground(dpy, gc, 0xFF);
+		XDrawString(dpy, w, gc, 4, MAX_PLOT_WIDTH, "Save as: ", 9);
+		XFlush(dpy);
+		
+		memset(filename, 0, 100);
+		get_string(filename);
+		save_program(filename);
+		draw_main_params();
+		break;
+	      case 'l': //load
+		clear_left();
+		XSetForeground(dpy, gc, 0xFF);
+		XDrawString(dpy, w, gc, 4, MAX_PLOT_WIDTH, "Load file: ", 9);
+		XFlush(dpy);
+
+		memset(filename, 0, 100);
+		get_string(filename);
+		load_program(filename);
+		draw_main_params();
+		break;
 	      case 'q': //quit
+		printf("Window Thread is DEADBEEF\n");
 		del_window();
 		return 0;
 	      }
@@ -243,6 +271,7 @@ void *sy_window_thread(void * arg){
       XFlush(dpy);
       usleep(1000);
     }
+    
 }
 
 
@@ -297,37 +326,28 @@ void draw_main_params(){
 
 void draw_synth_params(SynthAlg* synth){
   clear_left();
-  char **mapping = new char*[18];
-  for(int i = 0; i < 18; i++){
-    mapping[i] = new char[50];
-    memset(mapping[i], 32, 50);
-  }
-  
+  char mapping[18][50];
+  memset(mapping, 32, 18*50*sizeof(char));
   int len;
   synth->getControlMap(mapping, len);
   XSetForeground(dpy, gc, 0xFF);
   for(int i = 0; i < len; i++){
     XDrawString(dpy, w, gc, 1, (12*i) + 12, mapping[i], 50);
   }
-  
-  for(int i = 0; i < 18; i++){
-    delete mapping[i];
-  }
-  delete mapping;
 }
 
 void draw_main_window(){
   draw_border();
+  draw_fft();   //bottom right
   draw_wave(0); //top right
-  //draw_fft();   //bottom right
   if(Controller::has_new_data()) draw_main_params();
   XFlush(dpy);
 }
 
 void draw_synth_window(SynthAlg *synth){
   draw_border();
+  draw_fft();   //bottom right
   draw_wave(0); //top right
-  //  draw_fft();   //bottom right
   if(Controller::has_new_data()) draw_synth_params(synth);
   XFlush(dpy);
 }
@@ -394,20 +414,22 @@ void draw_wave(int plot){
 }
 
 void draw_fft(){
-  float *fft_plots = new float[W_SAMPLE_LEN];  
-  //calc_fft(wave_buffer, fft_plots, W_SAMPLE_LEN);
+  if(wave_buffer.size() < 2*W_SAMPLE_LEN) return;
+  
+  float fft_plot[2*W_SAMPLE_LEN];
+  calc_fft(wave_buffer.begin(), fft_plot, 2*W_SAMPLE_LEN);
   int ind;
   int ind_prev;
-  
+
+  clear_bottom_right();
   XSetForeground(dpy, gc, 0xFF);
-  for(int i = 1; i < W_SAMPLE_LEN; i++){
+  for(int i = 0; i < 2*W_SAMPLE_LEN; i++){
     //XFillRectangle(dpy, w, gc, i, (int) 64 + 63*plots[plot_num][ind], 1, 1);
     //TODO: THe number 2 in the next line is a guess
-    XDrawLine(dpy, w, gc, i + (SCREEN_WIDTH/2), (int) (SCREEN_HEIGHT*.75) + 2*fft_plots[i], i + (SCREEN_WIDTH/2) - 1, (int) (SCREEN_HEIGHT*.75) + 2*fft_plots[i-1]);
+    XDrawLine(dpy, w, gc, i + (SCREEN_WIDTH/2), SCREEN_HEIGHT - fft_plot[i], i + (SCREEN_WIDTH/2), SCREEN_HEIGHT);
     //XDrawLine(dpy, w, gc, i, (int) 64 + 63*plots[plot_num][ind], i, 64);
   }
-  XFlush(dpy);
-  delete fft_plots;
+  //XFlush(dpy);
 }
 
 void plot_wave(int plot_num, float value){
@@ -424,7 +446,7 @@ void plot_wave(int plot_num, float value){
     float prev_point = 0;
     for(int i = 1; i < display_len; i++){
       point = wave_buffer.front();
-      wave_buffer.pop();
+      wave_buffer.pop_front();
       //        XFillRectangle(dpy, w, gc, i, (int) 64 + 63*plots[plot_num][ind], 1, 1);
       XDrawLine(dpy, w, gc, i + offset_x, (int) offset_y + (SCREEN_HEIGHT/4)*point, i-1 + offset_x, (int) offset_y + (SCREEN_HEIGHT/4)*prev_point);
       //XDrawLine(dpy, w, gc, i, (int) 64 + 63*plots[plot_num][ind], i, 64);

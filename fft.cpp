@@ -1,3 +1,4 @@
+#include "fft.h"
 #include <complex>
 #include <iostream>
 #include <valarray>
@@ -40,10 +41,16 @@ void ifft(CArray& x)
     x /= x.size();
 }
  
-void calc_fft(float values[], float*& result, int len)
+void calc_fft(std::deque<float>::iterator buffer, float* result, int len)
 {
   Complex test[len];
+  for(int i = 0; i < len; i++){
+    test[i] = *buffer;
+    buffer++;
+  }
   CArray data(test, len);
+  
+  
   
   fft(data);
   for(int i = 0; i < len; i++){

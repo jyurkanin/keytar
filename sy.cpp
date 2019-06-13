@@ -4,6 +4,7 @@
 #include "audio_engine.h"
 #include <string>
 #include <iostream>
+#include <unistd.h>
 #include <alsa/asoundlib.h>
 #include "wave_window.h"
 
@@ -21,7 +22,7 @@ int main(int argc, char *argv[]){
     init_alsa();
     init_midi(argc, argv);
     while(is_window_open()){
-        midi_loop();
+      usleep(10000);
     }
     exit_alsa();
     exit_midi();

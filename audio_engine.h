@@ -50,6 +50,9 @@ void activate_main_controller();
 void addSynth(int alg);
 void delSynth(int num);
 
+void load_program(char* filename);
+void save_program(char* filename);
+
 SynthAlg* getSynth(int num);
 int getNumAlgorithms();
 Controller* getMainController();
@@ -58,5 +61,5 @@ int init_alsa();
 int exit_alsa();
 int init_midi(int argc, char *argv[]);
 int exit_midi();
-int midi_loop();
+void *midi_loop(void *arg);
 void *audio_thread(void *arg);
