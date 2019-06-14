@@ -39,6 +39,7 @@ typedef unsigned char MidiByte; //ugh
 typedef struct{
     int index[128];
     //    int period[128];
+    int state[128];
     int volume[128];
 } Sample;
 

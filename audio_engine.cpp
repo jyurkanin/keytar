@@ -11,8 +11,11 @@ snd_pcm_t *playback_handle;
 pthread_t m_thread;
 pthread_t piano_midi_thread;
 int MidiFD;
-MidiByte midiNotesPressed[0xFF]; /* this records all the notes currently on by pitch maximum notes on is KEYS*/
+MidiByte midiNotesPressed[0xFF]; /* this records all the notes jus pressed by pitch maximum notes on is KEYS*/
+MidiByte midiNotesReleased[0xFF]; //records the notes just released
 MidiByte midiNotesSustained[0xFF];
+int sustain = 0;
+
 float freqs[12] = {27.5, 29.135, 30.868, 32.703, 34.648, 36.708, 38.891, 41.203, 43.654, 46.249, 48.999, 51.913}; // frequencies of the lowest octave
 std::vector<SynthAlg*> synth_algorithms;
 //SynthAlg *synth_algorithms[MAX_NUM_WAVES];
@@ -117,25 +120,25 @@ float low_pass(float input, float freq){
   return output;
 }
 
-float synthesize(int n, int t, int volume){
+float synthesize(int n, int t, int s, int volume, int& state){
   float sample = 0;
   
   for(int i = 0; i < synth_algorithms.size(); i++){
-    sample += main_controller.get_slider(i) * compute_algorithm(n, t, volume, i) / 128.0f;
+    sample += main_controller.get_slider(i) * compute_algorithm(n, t, volume, i, state) / 128.0f;
   }
   
   return sample;
 }
 
-float compute_algorithm(int n, int t, int volume, int alg_num){
+float compute_algorithm(int n, int t, int s, int volume, int alg_num, int& state){
   float freq = freqs[(n-21) % 12] * (1 << (1+(int)(n-21)/12));
-  return compute_algorithm(freq, t, volume, alg_num);
+  return compute_algorithm(freq, t, volume, alg_num, state);
 }
-float compute_algorithm(float freq, int t, int volume, int alg_num){
+float compute_algorithm(float freq, int t, int s, int volume, int alg_num, int& state){
   if(alg_num >= synth_algorithms.size()) return 0;
   SynthAlg *synth = synth_algorithms[alg_num];
-  //todo: implement some of the yamaha dx11 FM algorithms.
-  return synth->tick(freq, t) * volume / 128.0f; //sexy as hell. Thanks c++
+  //todo: implement some of the yamaha dx7 FM algorithms.
+  return synth->tick(freq, t, s, state) * volume / 128.0f; //sexy as hell. Thanks c++
 }
 
 void addSynth(int alg){
@@ -164,6 +167,112 @@ void delSynth(int alg){
 }
 
 void *audio_thread(void *arg){
+    float sum_frames[441*CHANNELS];
+    int err;
+    int num_on;
+    int frames_to_deliver;
+    int volume = 0;
+    int ip_algo = 0; //interpolation algorithm
+    
+    snd_pcm_state_t pcm_state;
+    int lowest_note;
+    int lowest_index;
+    
+    while(is_window_open()){
+        snd_pcm_wait(playback_handle, 100);
+        frames_to_deliver = snd_pcm_avail_update(playback_handle);
+        if ( frames_to_deliver == -EPIPE){
+	    snd_pcm_prepare(playback_handle);
+            printf("Epipe\n");
+            continue;
+        }
+        frames_to_deliver = frames_to_deliver > 441 ? 441 : frames_to_deliver;
+	
+        memset(sum_frames, 0, CHANNELS*441*sizeof(float));
+        num_on = 0;
+	lowest_note = 0;
+        for(int k = 21; k <= 108; k++){
+	  if(midiNotesPressed[k]){
+	    num_on++;
+	    sample.volume[k] = midiNotesPressed[k];
+	    midiNotesPressed[k] = 0;
+	    midinotesSustained[k] = 0;
+	    
+	    printf("Key On\n");
+	    sample.index[k] = 0;
+	    sample.index_s[k] = 0;
+	    
+	    for(int j = 0; j < frames_to_deliver; j++){
+	      sum_frames[j] += synthesize(k, sample.index[k], sample.index_s[k], sample.volume[k], sample.state[k]);
+	      sample.index[k]++;
+	    }
+	  }
+	  else if(midiNotesReleased[k]){
+	    midiNotesReleased[k] = 0; //lets just pray we dont have race conditions.
+	    if(sustain > 32){
+	      num_on++;
+	    }
+	    
+	  }
+	  
+	  
+	  if(sample.state[k] != Operator::IDLE){ 
+	    if(!lowest_note){
+	    lowest_note = k;
+	    lowest_index = sample.index[k];
+	    }
+	  }
+
+          
+            else if(adsr[k].getState() != stk::ADSR::IDLE){ //note was released. Release.
+                num_on++;
+                if(adsr[k].getState() != stk::ADSR::RELEASE){ //detect keyOff
+		    printf("Key OFF\n");
+                    adsr[k].keyOff();
+                }
+		
+		if(!lowest_note){
+		  lowest_note = k;
+		  lowest_index = sample.index[k];
+		}
+                for(int j = 0; j < frames_to_deliver; j++){
+		    sum_frames[j] += adsr[k].tick(synthesize(k, sample.index[k], sample.volume[k]));
+                    sample.index[k]++;
+                }
+		
+                if(adsr[k].getState() == stk::ADSR::IDLE){
+                    sample.index[k] = 0;
+                }
+            }
+        }
+	
+	//	for(int j = 0; j < frames_to_deliver; j++){
+	//  sum_frames[j] = main_controller.get_knob(0)/128.0;//low_pass(sum_frames[j], main_controller.get_knob(0)/128.0);
+	//}
+
+	//ODDLY it reduces computational load a shit ton when this is allwed to run all the time. IDK bruh
+        if(num_on){
+	    set_wave_buffer(lowest_note, lowest_index, frames_to_deliver, sum_frames);
+	
+	    while((err = snd_pcm_writei (playback_handle, sum_frames, frames_to_deliver)) != frames_to_deliver && is_window_open()) {
+	      snd_pcm_prepare (playback_handle);
+	      pcm_state = snd_pcm_state(playback_handle);
+	      fprintf (stderr, "write to audio interface failed (%s)\n", snd_strerror (err));
+	    }
+	}
+	else{
+	  usleep(100);
+	}
+	
+	//else{
+	//    snd_pcm_prepare (playback_handle); //Everytime I use prepare it leaks a shit ton of memory.
+	//}
+    }
+    printf("Audio Thread is DEADBEEF\n");
+}
+
+
+/*void *audio_thread_old(void *arg){
     stk::StkFrames temp;
     stk::StkFrames temp_frames(441, 1);
     stk::StkFrames looped_frames_window(441, 1);
@@ -262,7 +371,7 @@ void *audio_thread(void *arg){
 	//}
     }
     printf("Audio Thread is DEADBEEF\n");
-}
+}*/
 
 int init_midi(int argc, char *argv[]){
   char *MIDI_DEVICE = argv[1];
@@ -365,7 +474,6 @@ int exit_alsa(){
 }
 
 void *midi_loop(void *ignoreme){
-  int sustain = 0;
   int bend = 64;
   MidiByte packet[4];
   std::queue<unsigned char> incoming;

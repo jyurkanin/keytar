@@ -24,7 +24,7 @@ void SynthAlg::getSynthName(char name[20]){
 /*
  * At high knob values this kind of sounds like the sword pulling out of a sheath sound effect in movies
  */
-float SwordAlg::tick(float freq, int t){
+float SwordAlg::tick(float freq, int t, int s, int &state){
   float mo;
   float ep = 0;
   if(t < 44100) ep = pow(M_E, -t/4410.0);
@@ -39,7 +39,7 @@ void SwordAlg::getControlMap(char mapping[18][50], int& len){
 }
 
 
-float FmSimpleAlg::tick(float freq, int t){
+float FmSimpleAlg::tick(float freq, int t, int s, int &state){
   float mod_freq = (controller.get_slider(0)*.25*controller.get_knob(0)/128.0);
   float mo = sin(freq*t*OMEGA*mod_freq);
   return sin(freq*t*OMEGA + controller.get_slider(1)*controller.get_knob(1)*mo*.0078125);
@@ -51,7 +51,7 @@ void FmSimpleAlg::getControlMap(char mapping[18][50], int& len){
   len = 2;
 }
 
-float SinAlg::tick(float freq, int t){
+float SinAlg::tick(float freq, int t, int s, int &state){
   float mod_freq = ((controller.get_slider(0)/8)*.5) + (controller.get_knob(0)/128.0);
   return sin(t*OMEGA*freq*mod_freq);
 }
@@ -68,7 +68,7 @@ void SinAlg::getControlMap(char mapping[18][50], int& len){
 //phase offset to each wave in the table. Then it will do a convolution
 //of the wave and an LFO with the phase offset. It will sum the result
 //of each convolution for each wave
-float WaveTableAlg::tick(float freq, int t){
+float WaveTableAlg::tick(float freq, int t, int s, int& state){
   float sweep_freq = controller.get_knob(8);
   float osc;
   float output = 0;
