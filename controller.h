@@ -14,7 +14,7 @@ class Controller{
   void activate();
   unsigned char get_slider(int index);
   unsigned char get_knob(int index);
-  unsigned char was_button_pressed(int index);
+  unsigned char get_button(int index);
   unsigned char get_big_slider();
   unsigned char get_big_knob();
   unsigned char was_start_pressed();

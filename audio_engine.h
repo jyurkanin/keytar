@@ -38,14 +38,15 @@ typedef unsigned char MidiByte; //ugh
 
 typedef struct{
     int index[128];
+    int index_s[128];
     //    int period[128];
     int state[128];
     int volume[128];
 } Sample;
 
-float compute_algorithm(int n, int t, int volume, int alg_num);
-float compute_algorithm(float freq, int t, int volume, int alg_num);
-float synthesize(int n, int t, int volume);
+float compute_algorithm(int n, int t, int s, int volume, int alg_num, int& state);
+float compute_algorithm(float freq, int t, int s, int volume, int alg_num, int& state);
+float synthesize(int n, int t, int s, int volume, int& state);
 
 void activate_main_controller();
 void addSynth(int alg);

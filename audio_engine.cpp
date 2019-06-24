@@ -45,21 +45,38 @@ void save_program(char* filename){
   
   memcpy(slider, main_controller.slider, sizeof(slider));
   memcpy(knob, main_controller.knob, sizeof(knob));
-  out << slider[0] << " " << slider[1] << " " <<  slider[2] << " " << slider[3] << " " << slider[4] << " " << slider[5] << " " << slider[6] << " " << slider[7] << " " << slider[8] << " ";
-  out << knob[0] << " " << knob[1] << " " <<  knob[2] << " " << knob[3] << " " << knob[4] << " " << knob[5] << " " << knob[6] << " " << knob[7] << " " << knob[8] << "\n";
+
+  for(int j = 0; j < 9; j++){
+    out << main_controller.slider[j] << " ";
+  }
+  for(int j = 0; j < 9; j++){
+    out << main_controller.knob[j] << " ";
+  }
+  out << "\n";
+
+  int num_controllers;
   
   for(int i = 0; i < synth_algorithms.size(); i++){
-    memcpy(slider, synth_algorithms[i]->controller.slider, sizeof(slider));
-    memcpy(knob, synth_algorithms[i]->controller.knob, sizeof(knob));
-    out << slider[0] << " " << slider[1] << " " <<  slider[2] << " " << slider[3] << " " << slider[4] << " " << slider[5] << " " << slider[6] << " " << slider[7] << " " << slider[8] << " ";
-    out << knob[0] << " " << knob[1] << " " <<  knob[2] << " " << knob[3] << " " << knob[4] << " " << knob[5] << " " << knob[6] << " " << knob[7] << " " << knob[8] << "\n";
+    num_controllers = synth_algorithms[i]->getNumControllers();
+    out << num_controllers << " ";
+    for(int j = 0; j < num_controllers; j++){
+      memcpy(slider, synth_algorithms[i]->controllers[j].slider, sizeof(slider));
+      memcpy(knob, synth_algorithms[i]->controllers[j].knob, sizeof(knob));
+      for(int k = 0; k < 9; k++){
+	out << slider[k] << " ";
+      }
+      for(int k = 0; k < 9; k++){
+	out << knob[k] << " ";
+      }
+    }
+    out << "\n";
   }
 
   out.close();
 }
 
 void load_program(char* filename){
-  for(int i = 0; i < synth_algorithms.size(); i++){
+  for(unsigned i = 0; i < synth_algorithms.size(); i++){
     delete synth_algorithms[i];
   }  
   synth_algorithms.clear();
@@ -76,7 +93,7 @@ void load_program(char* filename){
     in >> temp;
     addSynth(temp);
   }
-
+  
   for(int j = 0; j < 9; j++){
     in >> main_controller.slider[j];
   }
@@ -84,12 +101,16 @@ void load_program(char* filename){
     in >> main_controller.knob[j];
   }
   
+  int num_controllers;
   for(int i = 0; i < num; i++){
-    for(int j = 0; j < 9; j++){
-      in >> synth_algorithms[i]->controller.slider[j];
-    }
-    for(int j = 0; j < 9; j++){
-      in >> synth_algorithms[i]->controller.knob[j];
+    in >> num_controllers;
+    for(int k = 0; k < num_controllers; k++){
+      for(int j = 0; j < 9; j++){
+	in >> synth_algorithms[i]->controllers[k].slider[j];
+      }
+      for(int j = 0; j < 9; j++){
+	in >> synth_algorithms[i]->controllers[k].knob[j];
+      }
     }
   }
   
@@ -100,7 +121,7 @@ int getNumAlgorithms(){
 }
 
 SynthAlg* getSynth(int num){
-  if(num < synth_algorithms.size())
+  if(num < (int) synth_algorithms.size())
     return synth_algorithms[num];
   return NULL;
 }
@@ -120,11 +141,16 @@ float low_pass(float input, float freq){
   return output;
 }
 
+/* n = which note
+ * t = frames since pressed,
+ * s = frames since Release state is entered
+ * 
+ */
 float synthesize(int n, int t, int s, int volume, int& state){
   float sample = 0;
   
-  for(int i = 0; i < synth_algorithms.size(); i++){
-    sample += main_controller.get_slider(i) * compute_algorithm(n, t, volume, i, state) / 128.0f;
+  for(unsigned i = 0; i < synth_algorithms.size(); i++){
+    sample += main_controller.get_slider(i) * compute_algorithm(n, t, s, volume, i, state) / 128.0f;
   }
   
   return sample;
@@ -132,10 +158,10 @@ float synthesize(int n, int t, int s, int volume, int& state){
 
 float compute_algorithm(int n, int t, int s, int volume, int alg_num, int& state){
   float freq = freqs[(n-21) % 12] * (1 << (1+(int)(n-21)/12));
-  return compute_algorithm(freq, t, volume, alg_num, state);
+  return compute_algorithm(freq, t, s, volume, alg_num, state);
 }
 float compute_algorithm(float freq, int t, int s, int volume, int alg_num, int& state){
-  if(alg_num >= synth_algorithms.size()) return 0;
+  if(alg_num >= (int) synth_algorithms.size()) return 0;
   SynthAlg *synth = synth_algorithms[alg_num];
   //todo: implement some of the yamaha dx7 FM algorithms.
   return synth->tick(freq, t, s, state) * volume / 128.0f; //sexy as hell. Thanks c++
@@ -144,8 +170,8 @@ float compute_algorithm(float freq, int t, int s, int volume, int alg_num, int& 
 void addSynth(int alg){
   if(synth_algorithms.size() >= MAX_NUM_WAVES) return;
   switch(alg){
-  case SynthAlg::SIN_ALG:
-    synth_algorithms.push_back(new SinAlg());
+  case SynthAlg::OSC_ALG:
+    synth_algorithms.push_back(new OscAlg());
     break;
   case SynthAlg::SWORD_ALG:
     synth_algorithms.push_back(new SwordAlg());
@@ -160,7 +186,7 @@ void addSynth(int alg){
 }
 
 void delSynth(int alg){
-  if(alg >= synth_algorithms.size()) return;
+  if(alg >= (int)synth_algorithms.size()) return;
   SynthAlg* temp = synth_algorithms[alg];
   synth_algorithms.erase(synth_algorithms.begin()+alg);
   delete temp;
@@ -171,8 +197,6 @@ void *audio_thread(void *arg){
     int err;
     int num_on;
     int frames_to_deliver;
-    int volume = 0;
-    int ip_algo = 0; //interpolation algorithm
     
     snd_pcm_state_t pcm_state;
     int lowest_note;
@@ -192,68 +216,40 @@ void *audio_thread(void *arg){
         num_on = 0;
 	lowest_note = 0;
         for(int k = 21; k <= 108; k++){
-	  if(midiNotesPressed[k]){
-	    num_on++;
+	  //this is going to assume that the midi thread handles the sustaining. ANd will only issue a note off if the sustain is not active
+	  if(midiNotesPressed[k]){	    
 	    sample.volume[k] = midiNotesPressed[k];
 	    midiNotesPressed[k] = 0;
-	    midinotesSustained[k] = 0;
+	    num_on++;
 	    
-	    printf("Key On\n");
 	    sample.index[k] = 0;
 	    sample.index_s[k] = 0;
-	    
-	    for(int j = 0; j < frames_to_deliver; j++){
-	      sum_frames[j] += synthesize(k, sample.index[k], sample.index_s[k], sample.volume[k], sample.state[k]);
-	      sample.index[k]++;
-	    }
 	  }
 	  else if(midiNotesReleased[k]){
 	    midiNotesReleased[k] = 0; //lets just pray we dont have race conditions.
-	    if(sustain > 32){
-	      num_on++;
+	    num_on++;
+	    
+	    sample.index_s[k] = 1; //this will cause the state to transition to Release
+	  }
+	  
+	  
+	  if(sample.state[k] != Operator::IDLE){
+	    for(int j = 0; j < frames_to_deliver; j++){
+	      sum_frames[j] += synthesize(k, sample.index[k], sample.index_s[k], sample.volume[k], sample.state[k]);
+	      sample.index[k]++;
+	      if(sample.state[k] == Operator::RELEASE) sample.index_s[k]++;
 	    }
 	    
-	  }
-	  
-	  
-	  if(sample.state[k] != Operator::IDLE){ 
 	    if(!lowest_note){
-	    lowest_note = k;
-	    lowest_index = sample.index[k];
+	      lowest_note = k;
+	      lowest_index = sample.index[k];
 	    }
 	  }
-
-          
-            else if(adsr[k].getState() != stk::ADSR::IDLE){ //note was released. Release.
-                num_on++;
-                if(adsr[k].getState() != stk::ADSR::RELEASE){ //detect keyOff
-		    printf("Key OFF\n");
-                    adsr[k].keyOff();
-                }
-		
-		if(!lowest_note){
-		  lowest_note = k;
-		  lowest_index = sample.index[k];
-		}
-                for(int j = 0; j < frames_to_deliver; j++){
-		    sum_frames[j] += adsr[k].tick(synthesize(k, sample.index[k], sample.volume[k]));
-                    sample.index[k]++;
-                }
-		
-                if(adsr[k].getState() == stk::ADSR::IDLE){
-                    sample.index[k] = 0;
-                }
-            }
-        }
+	}
 	
-	//	for(int j = 0; j < frames_to_deliver; j++){
-	//  sum_frames[j] = main_controller.get_knob(0)/128.0;//low_pass(sum_frames[j], main_controller.get_knob(0)/128.0);
-	//}
-
-	//ODDLY it reduces computational load a shit ton when this is allwed to run all the time. IDK bruh
         if(num_on){
 	    set_wave_buffer(lowest_note, lowest_index, frames_to_deliver, sum_frames);
-	
+	    
 	    while((err = snd_pcm_writei (playback_handle, sum_frames, frames_to_deliver)) != frames_to_deliver && is_window_open()) {
 	      snd_pcm_prepare (playback_handle);
 	      pcm_state = snd_pcm_state(playback_handle);
@@ -263,12 +259,9 @@ void *audio_thread(void *arg){
 	else{
 	  usleep(100);
 	}
-	
-	//else{
-	//    snd_pcm_prepare (playback_handle); //Everytime I use prepare it leaks a shit ton of memory.
-	//}
     }
     printf("Audio Thread is DEADBEEF\n");
+    return NULL;
 }
 
 
@@ -411,14 +404,13 @@ int exit_midi(){
   pthread_join(piano_midi_thread, NULL);
   pthread_join(m_thread, NULL);
   close(MidiFD);
-  for(int i = 0; i < synth_algorithms.size(); i++){
+  for(unsigned i = 0; i < synth_algorithms.size(); i++){
     delete synth_algorithms[i];
   }
   return Controller::exit_controller();
 }
 
 int init_alsa(){
-    int i;
     int err;
     unsigned int sample_rate = 44100;
     snd_pcm_hw_params_t *hw_params;
@@ -498,18 +490,23 @@ void *midi_loop(void *ignoreme){
     
     switch(packet[0]){
     case(MIDI_NOTE_OFF):
-      if(sustain > 64){
-	midiNotesSustained[packet[1]] = midiNotesPressed[packet[1]];      
+      if(sustain < 64){	
+	midiNotesReleased[packet[1]] = 1;
       }
-      midiNotesPressed[packet[1]] = 0;
+      else{
+	midiNotesSustained[packet[1]] = 1;
+      }
       break;
     case(MIDI_NOTE_ON):
       midiNotesPressed[packet[1]] = packet[2];            
       break;
     case(PEDAL):
-      sustain = packet[2];
-      if(sustain < 64){
-	memset(midiNotesSustained, 0, sizeof(midiNotesSustained) * sizeof(midiNotesSustained[0]));
+      if(sustain >= 64 && packet[2] < 64){ //if the sustain is released.
+	sustain = packet[2];
+	for(int i = 0; i < 128; i++){ //releases all the notes and sets the sustained notes to 0.
+	  midiNotesReleased[i] |= midiNotesSustained[i];
+	  midiNotesSustained[i] = 0;
+	}
       }
       break;
     case(PITCH_BEND):

@@ -15,7 +15,6 @@ int end_index[NUM_PLOTS];
 float plots[NUM_PLOTS][MAX_PLOT_LENGTH];
 pthread_t w_thread;
 
-int speed = 1;
 //circle buffer
 int buf_write_index=0;
 int buf_read_index=0;
@@ -151,13 +150,11 @@ int get_num(){ //read the keyboard for a number
 
 //could be fucked
 void *sy_window_thread(void * arg){
-    int sleep_time = 100000;
     //int start_index, end_index;
     XEvent e;
     char buf[2];
-    speed = 4;
 
-    char status_msg[50];
+
     char filename[100];
     char cmd_state = MAIN_STATE;
     
@@ -167,6 +164,7 @@ void *sy_window_thread(void * arg){
     int synth_num;
     SynthAlg* synth;
     int alg_num;
+    int controller_num;
     
     while(1){
       switch(cmd_state){
@@ -189,79 +187,73 @@ void *sy_window_thread(void * arg){
 	      sscanf(buf, "%d", &synth_num);
 	      synth = getSynth(synth_num);
 	      if(synth){
-		synth->controller.activate();
+		synth->controllers[0].activate();
 		draw_synth_params(synth);
 		cmd_state = SYNTH_STATE;
 	      }
 	    }
-	    else{
-	      switch(buf[0]){
-	      case '+':
-		speed *= 2;
-		break;
-	      case '-':
-		speed /= 2;
-		if(speed == 0) speed = 1;
-		break;
-	      case 'd': //delete a synthalg
-		alg_num = get_num();
-		delSynth(alg_num);
-		break;
-	      case 'a': //add a new synthalg
-		cmd_state = SYNTH_STATE;
-		clear_left();
-		draw_synth_selection_window();
-		XFlush(dpy);
-		
-		alg_num = get_num(); //get number from user
-		addSynth(alg_num);
-		synth = getSynth(getNumAlgorithms()-1);
-		synth->controller.activate();
-		draw_synth_params(synth);
-		break;
-	      case 's': //save
-		clear_left();
-		XSetForeground(dpy, gc, 0xFF);
-		XDrawString(dpy, w, gc, 4, MAX_PLOT_WIDTH, "Save as: ", 9);
-		XFlush(dpy);
-		
-		memset(filename, 0, 100);
-		get_string(filename);
-		save_program(filename);
-		draw_main_params();
-		break;
-	      case 'l': //load
-		clear_left();
-		XSetForeground(dpy, gc, 0xFF);
-		XDrawString(dpy, w, gc, 4, MAX_PLOT_WIDTH, "Load file: ", 9);
-		XFlush(dpy);
-
-		memset(filename, 0, 100);
-		get_string(filename);
-		load_program(filename);
-		draw_main_params();
-		break;
-	      case 'q': //quit
-		printf("Window Thread is DEADBEEF\n");
-		del_window();
-		return 0;
-	      }
+	    
+	    switch(buf[0]){
+	    case 'd': //delete a synthalg
+	      alg_num = get_num();
+	      delSynth(alg_num);
+	      break;
+	    case 'a': //add a new synthalg
+	      cmd_state = SYNTH_STATE;
+	      clear_left();
+	      draw_synth_selection_window();
+	      XFlush(dpy);
+	      
+	      alg_num = get_num(); //get number from user
+	      addSynth(alg_num);
+	      synth = getSynth(getNumAlgorithms()-1);
+	      synth->controllers[0].activate();
+	      draw_synth_params(synth);
+	      break;
+	    case 's': //save
+	      clear_left();
+	      XSetForeground(dpy, gc, 0xFF);
+	      XDrawString(dpy, w, gc, 4, MAX_PLOT_WIDTH, "Save as: ", 9);
+	      XFlush(dpy);
+	      
+	      memset(filename, 0, 100);
+	      get_string(filename);
+	      save_program(filename);
+	      draw_main_params();
+	      break;
+	    case 'l': //load
+	      clear_left();
+	      XSetForeground(dpy, gc, 0xFF);
+	      XDrawString(dpy, w, gc, 4, MAX_PLOT_WIDTH, "Load file: ", 9);
+	      XFlush(dpy);
+	      
+	      memset(filename, 0, 100);
+	      get_string(filename);
+	      load_program(filename);
+	      draw_main_params();
+	      break;
+	    case 'q': //quit
+	      printf("Window Thread is DEADBEEF\n");
+	      del_window();
+	      return 0;
 	    }
 	    break;
 	    
 	  case SYNTH_STATE:
+	    if(isdigit(buf[0])){ //switch controller, 0-9
+	      sscanf(buf, "%d", &controller_num);
+	      if(controller_num){
+		synth->controllers[controller_num].activate();
+	      }
+	    }
+	    
 	    switch(buf[0]){
 	    case 'x':
 	      cmd_state = MAIN_STATE;
 	      activate_main_controller();
 	      draw_main_params();
 	      break;
-	    case '+':
-	      speed *= 2;
-	      break;
-	    case '-':
-	      speed /= 2;
-	      if(speed == 0) speed = 1;
+	    case 'p':
 	      break;
 	    }
 	    break;
@@ -318,21 +310,33 @@ void draw_main_params(){
   memset(line, 32, 60);
   sprintf(line, "[Low Pass Frequency|%f]", main->get_knob(0) * 44100.0 / 128.0);
   XDrawString(dpy, w, gc, 1, 130, line, 38);
-
-  memset(line, 32, 60);
-  sprintf(line, "[Speed|%d]", speed);
-  XDrawString(dpy, w, gc, 1, 142, line, 38);
 }
 
 void draw_synth_params(SynthAlg* synth){
   clear_left();
   char mapping[18][50];
-  memset(mapping, 32, 18*50*sizeof(char));
+  memset(mapping, 32, 18*25*sizeof(char));
   int len;
-  synth->getControlMap(mapping, len);
+  int sum = 0;
+  int offset_x;
+  int offset_y;
+  Envelope e;
   XSetForeground(dpy, gc, 0xFF);
-  for(int i = 0; i < len; i++){
-    XDrawString(dpy, w, gc, 1, (12*i) + 12, mapping[i], 50);
+  for(int j = 0; j < synth->getNumControllers(); j++){
+    synth->getControlMap(mapping, len, j);
+    for(int i = 0; i < len; i++){
+      XDrawString(dpy, w, gc, 1, (12*(i+sum)) + 12, mapping[i], 25);
+    }
+    sum += len;
+    
+    e = synth->getEnvelope(j);
+    offset_x = 8*sum;
+    offset_y = 12*sum;
+    
+    XDrawLine(dpy, w, gc, offset_x, offset_y, offset_x + (int)(e.attack_time*16), offset_y - (int)(e.attack_level*16));
+    XDrawLine(dpy, w, gc, offset_x + (int)(e.attack_time*16), offset_y - (int)(e.attack_level*16), offset_x + (int)((e.attack_time + e.decay_time)*16), offset_y - (int)(e.sustain_level*16));
+    XDrawLine(dpy, w, gc, offset_x + (int)((e.attack_time + e.decay_time)*16), offset_y - (int)(e.sustain_level*16), offset_x + (int)((e.attack_time + e.decay_time)*16) + 16, offset_y - (int)(e.sustain_level*16));
+    XDrawLine(dpy, w, gc, offset_x + (int)((e.decay_time + e.attack_time)*16) + 16, offset_y - (int)(e.sustain_level*16), offset_x + (int)((e.decay_time + e.attack_time + e.release_time)*16)+ 16, offset_y); 
   }
 }
 
@@ -340,7 +344,9 @@ void draw_main_window(){
   draw_border();
   draw_fft();   //bottom right
   draw_wave(0); //top right
-  if(Controller::has_new_data()) draw_main_params();
+  if(Controller::has_new_data()){
+    draw_main_params();
+  }
   XFlush(dpy);
 }
 
@@ -348,7 +354,9 @@ void draw_synth_window(SynthAlg *synth){
   draw_border();
   draw_fft();   //bottom right
   draw_wave(0); //top right
-  if(Controller::has_new_data()) draw_synth_params(synth);
+  if(Controller::has_new_data()){
+    draw_synth_params(synth);
+  }
   XFlush(dpy);
 }
 
@@ -394,20 +402,6 @@ void clear_wave(){
     XFillRectangle(dpy, w, gc, MAX_PLOT_LENGTH + 3, 1, MAX_PLOT_LENGTH, MAX_PLOT_WIDTH);
 }
 
-/*void draw_wave2(int plot){
-  float avg_value = 0;
-  int sleep_time = (int) (1000000.0*(speed/44100.0));
-  int counter = 0;
-  
-  while(!wave_buffer.empty()){
-    printf("wave buffer size %ld\n", wave_buffer.size());
-    clear_wave();
-    plot_wave(plot, wave_buffer.front());//avg_value / speed);
-    avg_value = 0;
-    usleep(100000);
-  }
-  }*/
-
 void draw_wave(int plot){
   clear_wave();
   plot_wave(plot, 0);//avg_value / speed);
@@ -418,9 +412,7 @@ void draw_fft(){
   
   float fft_plot[2*W_SAMPLE_LEN];
   calc_fft(wave_buffer.begin(), fft_plot, 2*W_SAMPLE_LEN);
-  int ind;
-  int ind_prev;
-
+  
   clear_bottom_right();
   XSetForeground(dpy, gc, 0xFF);
   for(int i = 0; i < 2*W_SAMPLE_LEN; i++){

@@ -39,18 +39,12 @@ unsigned char Controller::get_big_knob(){
   return big_knob;
 }
 
-unsigned char Controller::was_button_pressed(int index){
+unsigned char Controller::get_button(int index){
   int length = (sizeof(button)/sizeof(*(button)));
   if(index >= length){
     return 0;
   }
-  if(button[index]){
-    button[index] = 0;
-    return 127;
-  }
-  else{
-    return 0;
-  }
+  return button[index];
 }
 
 unsigned char Controller::was_start_pressed(){
@@ -125,13 +119,13 @@ int Controller::has_new_data(){
 
 void *Controller::read_controller(void *nothing){
   unsigned char c_byte;
-  unsigned char packet[4]; //wow I hate typedefs Im so sorry
+  unsigned char packet[4];
   has_new = 1;
   std::queue<unsigned char> incoming;
   unsigned char temp;
   while(is_window_open()){
     if(read(controllerFD, &temp, sizeof(temp)) <= 0){
-      usleep(10);
+      usleep(100);
       continue;
     }
     else{
@@ -161,7 +155,7 @@ void *Controller::read_controller(void *nothing){
 	if(packet[2]) active_controller->big_knob = packet[2];
       }
       else if(packet[1] >= 23 && packet[1] <= 31 && packet[2]){
-	active_controller->button[packet[1] - 23] = packet[2];
+	active_controller->button[packet[1] - 23] ^= 1; //this toggles the state of the button
       }
       else if(packet[2]){ //only assign it if it was pressed. The application that reads it will have to reset the button.
 	switch(packet[1]){
