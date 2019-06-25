@@ -30,7 +30,7 @@ void Operator::tick(float freq, int t){
   float fm_mod = controller.get_slider(0)*controller.get_knob(0)*fm_input*.0078125;
   int octave = controller.get_slider(1) / 8; //gives a range of 16 octaves
   float detune  = controller.get_knob(1) / 128.0;
-  freq *= (1 << octave)*(detune)/128.0;
+  freq *= (1 << octave)*(1+detune)/128.0;
 
   if(controller.get_button(0)){ //button zero is exponential fm mod. Vs linear fm mod.
   }
@@ -41,6 +41,7 @@ void Operator::tick(float freq, int t){
       break;
     case 1:
       output = tri(OMEGA*t*freq + fm_mod);
+      break;
     case 2:
       output = saw(OMEGA*t*freq + fm_mod);
       break;
@@ -60,6 +61,7 @@ int Operator::envelope(int t, int s){
   
   float attack_level_norm = controller.get_slider(5)*.0078125;
   float sustain_level_norm = controller.get_slider(6)*.0078125;
+
   
   //this is going to assume that the note is on.
   if(t < attack_time_norm){
@@ -75,7 +77,7 @@ int Operator::envelope(int t, int s){
     return SUSTAIN;
   }
   else if(s < release_time_norm){
-    output *= sustain_level_norm * (1 - (s / release_time_norm));
+    output *= sustain_level_norm * (1 - ((float)s / release_time_norm));
     return RELEASE;
   }
   else{

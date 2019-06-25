@@ -48,11 +48,11 @@ void SwordAlg::getControlMap(char mapping[18][50], int& len, int c_num){
 
 Envelope SwordAlg::getEnvelope(int i){
   Envelope e;
-  e.attack_time = controllers[0].get_slider(2) * .0078125 * 44100.0; //the actual attack time = (attack_time / 128) * 441000
+  e.attack_time = controllers[0].get_slider(2) * .0078125; //the actual attack time = (attack_time / 128) * 441000
   e.attack_level = controllers[0].get_slider(5)*.0078125;
-  e.decay_time = controllers[0].get_slider(3) * .0078125 * 44100.0;
-  e.sustain_level = controllers[0].get_slider(6)*.0078125;;
-  e.release_time = controllers[0].get_slider(4) * .0078125 * 44100.0;
+  e.decay_time = controllers[0].get_slider(3) * .0078125;
+  e.sustain_level = controllers[0].get_slider(6)*.0078125;
+  e.release_time = controllers[0].get_slider(4) * .0078125;
   return e;
 }
 
@@ -68,10 +68,10 @@ float FmSimpleAlg::tick(float freq, int t, int s, int &state){
 void FmSimpleAlg::getControlMap(char mapping[18][50], int& len, int c_num){
   if(c_num == 0){
     sprintf(mapping[0], "%s", "Carrier Operator");
-    sprintf(mapping[1], "Octave = %d", controllers[0].get_slider(0)/8);
-    sprintf(mapping[2], "Detune = %f", controllers[0].get_knob(0)/128.0);
+    sprintf(mapping[1], "Octave = %d", controllers[0].get_slider(1)/8);
+    sprintf(mapping[2], "Detune = %f", controllers[0].get_knob(1)/128.0);
     sprintf(mapping[3], "Waveform = %d", controllers[0].get_knob(2)/32);
-    sprintf(mapping[3], "FM Gain = %d", controllers[0].get_knob(2)/32);
+    sprintf(mapping[3], "FM Gain = %f", controllers[0].get_slider(0) * controllers[0].get_knob(0) * .0078125);
     if(controllers[0].get_button(0))
       sprintf(mapping[4], "%s", "Exponential FM");
     else
@@ -82,7 +82,7 @@ void FmSimpleAlg::getControlMap(char mapping[18][50], int& len, int c_num){
     sprintf(mapping[0], "%s", "Modulator Operator");
     sprintf(mapping[1], "Octave = %d", controllers[1].get_slider(0)/8);
     sprintf(mapping[2], "Detune = %f", controllers[1].get_knob(0)/128.0);
-    sprintf(mapping[3], "Waveform = %d", controllers[1].get_knob(2)/32);
+    sprintf(mapping[3], "Waveform = %d              ", controllers[1].get_knob(2)/32);
     len = 4;
   }
   else{
@@ -93,11 +93,11 @@ void FmSimpleAlg::getControlMap(char mapping[18][50], int& len, int c_num){
 Envelope FmSimpleAlg::getEnvelope(int i){
   Envelope e;
   if(i >= 2) return e;
-  e.attack_time = controllers[i].get_slider(2) * .0078125 * 44100.0; //the actual attack time = (attack_time / 128) * 441000
+  e.attack_time = controllers[i].get_slider(2) * .0078125; //the actual attack time = (attack_time / 128) * 441000
   e.attack_level = controllers[i].get_slider(5)*.0078125;
-  e.decay_time = controllers[i].get_slider(3) * .0078125 * 44100.0;
+  e.decay_time = controllers[i].get_slider(3) * .0078125;
   e.sustain_level = controllers[i].get_slider(6)*.0078125;
-  e.release_time = controllers[i].get_slider(4) * .0078125 * 44100.0;
+  e.release_time = controllers[i].get_slider(4) * .0078125;
   return e;
 }
 
@@ -109,8 +109,8 @@ float OscAlg::tick(float freq, int t, int s, int &state){
 }
 void OscAlg::getControlMap(char mapping[18][50], int& len, int c_num){
   if(c_num == 0){
-    sprintf(mapping[0], "Octave = %d", (controllers[0].get_slider(0)/8));
-    sprintf(mapping[1], "Detune = %f", controllers[0].get_knob(0)/128.0);
+    sprintf(mapping[0], "Octave = %d", (controllers[0].get_slider(1)/8));
+    sprintf(mapping[1], "Detune = %f", controllers[0].get_knob(1)/128.0);
     sprintf(mapping[2], "Waveform = %d", controllers[0].get_knob(2)/32);
     len = 3;
   }
@@ -121,11 +121,11 @@ void OscAlg::getControlMap(char mapping[18][50], int& len, int c_num){
 
 Envelope OscAlg::getEnvelope(int i){
   Envelope e;
-  e.attack_time = controllers[0].get_slider(2) * .0078125 * 44100.0; //the actual attack time = (attack_time / 128) * 441000
+  e.attack_time = controllers[0].get_slider(2) * .0078125; //the actual attack time = (attack_time / 128) * 441000
   e.attack_level = controllers[0].get_slider(5)*.0078125;
-  e.decay_time = controllers[0].get_slider(3) * .0078125 * 44100.0;
+  e.decay_time = controllers[0].get_slider(3) * .0078125;
   e.sustain_level = controllers[0].get_slider(6)*.0078125;
-  e.release_time = controllers[0].get_slider(4) * .0078125 * 44100.0;
+  e.release_time = controllers[0].get_slider(4) * .0078125;
   return e;
 }
 

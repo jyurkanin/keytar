@@ -6,7 +6,6 @@
 #include <queue>
 #include <sys/ioctl.h>
 
-ADSR_S adsr[128];
 snd_pcm_t *playback_handle;
 pthread_t m_thread;
 pthread_t piano_midi_thread;
@@ -195,7 +194,7 @@ void delSynth(int alg){
 void *audio_thread(void *arg){
     float sum_frames[441*CHANNELS];
     int err;
-    int num_on;
+    int num_on = 0;
     int frames_to_deliver;
     
     snd_pcm_state_t pcm_state;
@@ -213,41 +212,47 @@ void *audio_thread(void *arg){
         frames_to_deliver = frames_to_deliver > 441 ? 441 : frames_to_deliver;
 	
         memset(sum_frames, 0, CHANNELS*441*sizeof(float));
-        num_on = 0;
+        //num_on = 0;
 	lowest_note = 0;
-        for(int k = 21; k <= 108; k++){
-	  //this is going to assume that the midi thread handles the sustaining. ANd will only issue a note off if the sustain is not active
-	  if(midiNotesPressed[k]){	    
-	    sample.volume[k] = midiNotesPressed[k];
-	    midiNotesPressed[k] = 0;
-	    num_on++;
-	    
-	    sample.index[k] = 0;
-	    sample.index_s[k] = 0;
-	  }
-	  else if(midiNotesReleased[k]){
-	    midiNotesReleased[k] = 0; //lets just pray we dont have race conditions.
-	    num_on++;
-	    
-	    sample.index_s[k] = 1; //this will cause the state to transition to Release
-	  }
-	  
-	  
-	  if(sample.state[k] != Operator::IDLE){
-	    for(int j = 0; j < frames_to_deliver; j++){
-	      sum_frames[j] += synthesize(k, sample.index[k], sample.index_s[k], sample.volume[k], sample.state[k]);
-	      sample.index[k]++;
-	      if(sample.state[k] == Operator::RELEASE) sample.index_s[k]++;
+	if(synth_algorithms.size() > 0){
+	  for(int k = 21; k <= 108; k++){
+	    //this is going to assume that the midi thread handles the sustaining. ANd will only issue a note off if the sustain is not active
+	    if(midiNotesPressed[k]){
+	      sample.volume[k] = midiNotesPressed[k];
+	      midiNotesPressed[k] = 0;
+	      num_on++;
+	      
+	      sample.index[k] = 1; //will cause sate to transition to attack
+	      sample.index_s[k] = 0;
+	    }
+	    else if(midiNotesReleased[k]){
+	      midiNotesReleased[k] = 0; //lets just pray we dont have race conditions.
+	      
+	      sample.index_s[k] = 1; //this will cause the state to transition to Release
 	    }
 	    
-	    if(!lowest_note){
-	      lowest_note = k;
-	      lowest_index = sample.index[k];
+	    
+	    if(sample.index[k]){
+	      for(int j = 0; j < frames_to_deliver; j++){
+		sum_frames[j] += synthesize(k, sample.index[k], sample.index_s[k], sample.volume[k], sample.state[k]);
+		sample.index[k]++;
+		if(sample.state[k] == Operator::RELEASE) sample.index_s[k]++;
+	      }
+	      
+	      if(sample.state[k] == Operator::IDLE){
+		sample.index[k] = 0;
+		sample.index_s[k] = 0;
+		num_on--;
+	      }
+	      
+	      if(!lowest_note){
+		lowest_note = k;
+		lowest_index = sample.index[k];
+	      }
 	    }
 	  }
-	}
-	
-        if(num_on){
+	  
+	  if(num_on){
 	    set_wave_buffer(lowest_note, lowest_index, frames_to_deliver, sum_frames);
 	    
 	    while((err = snd_pcm_writei (playback_handle, sum_frames, frames_to_deliver)) != frames_to_deliver && is_window_open()) {
@@ -255,9 +260,10 @@ void *audio_thread(void *arg){
 	      pcm_state = snd_pcm_state(playback_handle);
 	      fprintf (stderr, "write to audio interface failed (%s)\n", snd_strerror (err));
 	    }
-	}
-	else{
-	  usleep(100);
+	  }
+	  else{
+	    usleep(10);
+	  }
 	}
     }
     printf("Audio Thread is DEADBEEF\n");
@@ -382,21 +388,11 @@ int init_midi(int argc, char *argv[]){
   }
     
 //    snd_pipe.openFile("snd_pipe", 1, stk::FileWrite::FILE_SND, stk::Stk::STK_SINT16);
-    stk::OneZero attack(0);
-    stk::OneZero decay(0);
-    stk::OneZero sustain(0);
-    stk::OneZero release(0);
-    
-    for(int k = 21; k <= 108; k++){
-        adsr[k] = ADSR_S();
-        adsr[k].setAllTimes(.1, .1, 1, .1);
-        adsr[k].set_filters(attack, decay, sustain, release);
-    }
-
-    pthread_create(&piano_midi_thread, NULL, &midi_loop, NULL);
-    pthread_create(&m_thread, NULL, &audio_thread, NULL);
-    main_controller.activate();
-    return Controller::init_controller(argc, argv);
+  
+  pthread_create(&piano_midi_thread, NULL, &midi_loop, NULL);
+  pthread_create(&m_thread, NULL, &audio_thread, NULL);
+  main_controller.activate();
+  return Controller::init_controller(argc, argv);
 }
 
 
@@ -455,6 +451,8 @@ int init_alsa(){
     snd_pcm_get_params(playback_handle, &buf_size, &period_size);
     //printf("%d derp %d\n", buf_size, period_size);    
     snd_pcm_prepare(playback_handle);
+
+    memset(&sample, 0, sizeof(sample));
     
     return EXIT_SUCCESS;
 }
@@ -486,7 +484,7 @@ void *midi_loop(void *ignoreme){
     }
     else continue;
     
-    printf("keyboard %d %d %d\n", packet[0], packet[1], packet[2]);
+    //    printf("keyboard %d %d %d\n", packet[0], packet[1], packet[2]);
     
     switch(packet[0]){
     case(MIDI_NOTE_OFF):

@@ -40,9 +40,9 @@ int get_num();
 
 void draw_synth_selection_window();
 void draw_main_params();
-void draw_synth_params(SynthAlg* synth);
+void draw_synth_params(SynthAlg* synth, int active_controler_num);
 void draw_main_window();
-void draw_synth_window(SynthAlg *synth);
+void draw_synth_window(SynthAlg *synth, int num);
 void draw_border();
 void draw_wave(int plot_num);
 void draw_fft();

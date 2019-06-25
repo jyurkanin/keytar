@@ -18,7 +18,6 @@
 #include <complex.h>
 #include <sys/time.h>
 #include "wave_window.h"
-#include "ADSR_S.h"
 #include "synth.h"
 #include "controller.h"
 

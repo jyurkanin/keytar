@@ -164,7 +164,7 @@ void *sy_window_thread(void * arg){
     int synth_num;
     SynthAlg* synth;
     int alg_num;
-    int controller_num;
+    int controller_num = 0;
     
     while(1){
       switch(cmd_state){
@@ -172,7 +172,7 @@ void *sy_window_thread(void * arg){
 	draw_main_window();
 	break;
       case SYNTH_STATE:
-	draw_synth_window(synth);
+	draw_synth_window(synth, controller_num);
 	break;
       }
       
@@ -187,8 +187,9 @@ void *sy_window_thread(void * arg){
 	      sscanf(buf, "%d", &synth_num);
 	      synth = getSynth(synth_num);
 	      if(synth){
-		synth->controllers[0].activate();
-		draw_synth_params(synth);
+		controller_num = 0;
+		synth->controllers[controller_num].activate();
+		draw_synth_params(synth, controller_num);
 		cmd_state = SYNTH_STATE;
 	      }
 	    }
@@ -208,7 +209,8 @@ void *sy_window_thread(void * arg){
 	      addSynth(alg_num);
 	      synth = getSynth(getNumAlgorithms()-1);
 	      synth->controllers[0].activate();
-	      draw_synth_params(synth);
+	      controller_num = 0;
+	      draw_synth_params(synth, controller_num);
 	      break;
 	    case 's': //save
 	      clear_left();
@@ -242,7 +244,7 @@ void *sy_window_thread(void * arg){
 	  case SYNTH_STATE:
 	    if(isdigit(buf[0])){ //switch controller, 0-9
 	      sscanf(buf, "%d", &controller_num);
-	      if(controller_num){
+	      if(controller_num < synth->getNumControllers()){
 		synth->controllers[controller_num].activate();
 	      }
 	    }
@@ -312,31 +314,38 @@ void draw_main_params(){
   XDrawString(dpy, w, gc, 1, 130, line, 38);
 }
 
-void draw_synth_params(SynthAlg* synth){
+void draw_synth_params(SynthAlg* synth, int active_controller_num){
   clear_left();
   char mapping[18][50];
-  memset(mapping, 32, 18*25*sizeof(char));
+  memset(mapping, 32, 18*50*sizeof(char));
   int len;
   int sum = 0;
   int offset_x;
   int offset_y;
   Envelope e;
   XSetForeground(dpy, gc, 0xFF);
+
+  char line[50];
+  memset(line, 32, 50);
+  sprintf(line, "Active Synth Operator: %d", active_controller_num);
+  XDrawString(dpy, w, gc, 1, 12, line, 50);
+  
+  sum = 2;
   for(int j = 0; j < synth->getNumControllers(); j++){
     synth->getControlMap(mapping, len, j);
     for(int i = 0; i < len; i++){
-      XDrawString(dpy, w, gc, 1, (12*(i+sum)) + 12, mapping[i], 25);
+      XDrawString(dpy, w, gc, 1, (12*(i+sum)) + 12, mapping[i], 50);
     }
-    sum += len;
+    sum += len+2;
     
     e = synth->getEnvelope(j);
-    offset_x = 8*sum;
-    offset_y = 12*sum;
+    offset_x = 300;
+    offset_y = 12*(sum-2);
     
-    XDrawLine(dpy, w, gc, offset_x, offset_y, offset_x + (int)(e.attack_time*16), offset_y - (int)(e.attack_level*16));
-    XDrawLine(dpy, w, gc, offset_x + (int)(e.attack_time*16), offset_y - (int)(e.attack_level*16), offset_x + (int)((e.attack_time + e.decay_time)*16), offset_y - (int)(e.sustain_level*16));
-    XDrawLine(dpy, w, gc, offset_x + (int)((e.attack_time + e.decay_time)*16), offset_y - (int)(e.sustain_level*16), offset_x + (int)((e.attack_time + e.decay_time)*16) + 16, offset_y - (int)(e.sustain_level*16));
-    XDrawLine(dpy, w, gc, offset_x + (int)((e.decay_time + e.attack_time)*16) + 16, offset_y - (int)(e.sustain_level*16), offset_x + (int)((e.decay_time + e.attack_time + e.release_time)*16)+ 16, offset_y); 
+    XDrawLine(dpy, w, gc, offset_x, offset_y, offset_x + (int)(e.attack_time*64), offset_y - (int)(e.attack_level*64));
+    XDrawLine(dpy, w, gc, offset_x + (int)(e.attack_time*64), offset_y - (int)(e.attack_level*64), offset_x + (int)((e.attack_time + e.decay_time)*64), offset_y - (int)(e.sustain_level*64));
+    XDrawLine(dpy, w, gc, offset_x + (int)((e.attack_time + e.decay_time)*64), offset_y - (int)(e.sustain_level*64), offset_x + (int)((e.attack_time + e.decay_time)*64) + 64, offset_y - (int)(e.sustain_level*64));
+    XDrawLine(dpy, w, gc, offset_x + (int)((e.decay_time + e.attack_time)*64) + 64, offset_y - (int)(e.sustain_level*64), offset_x + (int)((e.decay_time + e.attack_time + e.release_time)*64)+ 64, offset_y); 
   }
 }
 
@@ -350,12 +359,12 @@ void draw_main_window(){
   XFlush(dpy);
 }
 
-void draw_synth_window(SynthAlg *synth){
+void draw_synth_window(SynthAlg *synth, int num){
   draw_border();
   draw_fft();   //bottom right
   draw_wave(0); //top right
   if(Controller::has_new_data()){
-    draw_synth_params(synth);
+    draw_synth_params(synth, num);
   }
   XFlush(dpy);
 }

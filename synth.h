@@ -62,8 +62,8 @@ class SwordAlg : public SynthAlg{
 
 class FmSimpleAlg : public SynthAlg{
  public:
-  Operator modulator;
   Operator carrier;
+  Operator modulator;
   
   FmSimpleAlg() : SynthAlg(2), carrier(controllers[0]), modulator(controllers[1]){};
   ~FmSimpleAlg(){};
