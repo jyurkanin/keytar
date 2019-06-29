@@ -51,9 +51,8 @@ void calc_fft(std::deque<float>::iterator buffer, float* result, int len)
   CArray data(test, len);
   
   
-  
   fft(data);
-  for(int i = 0; i < len; i++){
+  for(int i = 0; i < len; i++){    
     result[i] = norm(data[i]);
   }
 }

@@ -50,34 +50,16 @@ void init_window(){
     pthread_create(&w_thread, NULL, &sy_window_thread, NULL);    
 }
 
-/*void set_wave_buffer2(int len, float* values){ //values is W_SAMPLE_LEN long
-  static int toggle = 0;
-
-  if(toggle){
-    if(wave_buffer.size() > (4*MAX_PLOT_LENGTH)){
-      toggle = 0; //too big. toggle dont recieve any more until queue is empty
-    }
-  }
-  else{
-    if(wave_buffer.size() < MAX_PLOT_LENGTH){
-      toggle = 1;
-    }
-  }
-  
-  if(toggle){
-    for(int i = 0; i < len; i++){
-      wave_buffer.push(values[i]);
-    }
-  }
-  }*/
-
 void set_wave_buffer(int n, int t, int buf_len, float* values){ //values is W_SAMPLE_LEN long
   float freqs[12] = {27.5, 29.135, 30.868, 32.703, 34.648, 36.708, 38.891, 41.203, 43.654, 46.249, 48.999, 51.913}; // frequencies of the lowest octave
-  float freq = freqs[(n-21) % 12] * (1 << (1+(int)(n-21)/12));
+  float key =  freqs[(n-21) % 12];
+  float freq = key  * (1 << (1+(int)(n-21)/12));
   
-  int period = wave_period = (int)(44100/freq);
-  int start = period - (t%period);
-  int len = ((buf_len-start)/period)*period; //only copy multiples of the period length.
+  float period = wave_period = (44100.0/freq);
+  float fstart = period - fmod(t, period);
+  int start = round(fstart);
+  float temp = buf_len - fstart;
+  int len = round(temp - fmod(temp, period));//((buf_len-start)/period)*period; //only copy multiples of the period length.
   
   static int toggle = 0;
   
@@ -184,6 +166,7 @@ void *sy_window_thread(void * arg){
 	  switch(cmd_state){
 	  case MAIN_STATE:
 	    if(isdigit(buf[0])){ //switch oscillator, 0-9
+	      synth_num = 0;
 	      sscanf(buf, "%d", &synth_num);
 	      synth = getSynth(synth_num);
 	      if(synth){
@@ -418,19 +401,22 @@ void draw_wave(int plot){
 
 void draw_fft(){
   if(wave_buffer.size() < 2*W_SAMPLE_LEN) return;
-  
+
   float fft_plot[2*W_SAMPLE_LEN];
-  calc_fft(wave_buffer.begin(), fft_plot, 2*W_SAMPLE_LEN);
+  int temp = ((MAX_PLOT_LENGTH - (2*W_SAMPLE_LEN)) / 2) + (SCREEN_WIDTH/2);
+  int len = (2*W_SAMPLE_LEN) - fmod(2*W_SAMPLE_LEN, wave_period);
+  
+  calc_fft(wave_buffer.begin(), fft_plot, len);
   
   clear_bottom_right();
   XSetForeground(dpy, gc, 0xFF);
-  for(int i = 0; i < 2*W_SAMPLE_LEN; i++){
-    //XFillRectangle(dpy, w, gc, i, (int) 64 + 63*plots[plot_num][ind], 1, 1);
-    //TODO: THe number 2 in the next line is a guess
-    XDrawLine(dpy, w, gc, i + (SCREEN_WIDTH/2), SCREEN_HEIGHT - fft_plot[i], i + (SCREEN_WIDTH/2), SCREEN_HEIGHT);
-    //XDrawLine(dpy, w, gc, i, (int) 64 + 63*plots[plot_num][ind], i, 64);
+  
+  int x_pos;
+  for(int i = 0; i < len/2; i++){
+    
+    x_pos = temp + (60*log(i)) + i;
+    XDrawLine(dpy, w, gc, x_pos, SCREEN_HEIGHT - (fft_plot[i]*.1), x_pos, SCREEN_HEIGHT);
   }
-  //XFlush(dpy);
 }
 
 void plot_wave(int plot_num, float value){
@@ -438,8 +424,8 @@ void plot_wave(int plot_num, float value){
     int offset_x = SCREEN_WIDTH/2 + 1;
     int offset_y = SCREEN_HEIGHT/4;
     int temp = MAX_PLOT_LENGTH < wave_buffer.size() ? MAX_PLOT_LENGTH : wave_buffer.size(); //get the limiting factor
-    int display_len = wave_period == 0 ? 0 : (temp/wave_period)*wave_period; //make it a multiple of the period.
-
+    int display_len = wave_period == 0 ? 0 : temp - fmod(temp, wave_period); //make it a multiple of the period.
+    
     usleep(100000);
     XSetForeground(dpy, gc, _color_map[plot_num]);
     
@@ -455,55 +441,6 @@ void plot_wave(int plot_num, float value){
     }
     XFlush(dpy);
 }
-
-
-/*void plot_wave2(int plot_num, float value){
-    unsigned long _color_map[] = {0xFF,0xFF00,0xFF0000};
-    int offset_x = SCREEN_WIDTH/2 + 1;
-    int offset_y = SCREEN_HEIGHT/4;
-    
-    XSetForeground(dpy, gc, _color_map[plot_num]);
-    float point = wave_buffer.front();
-    wave_buffer.pop();
-    
-    float prev_point = point;
-    for(int i = 1; i < MAX_PLOT_LENGTH && i < wave_buffer.size(); i++){
-      point = wave_buffer.front();
-      wave_buffer.pop();
-      //        XFillRectangle(dpy, w, gc, i, (int) 64 + 63*plots[plot_num][ind], 1, 1);
-      XDrawLine(dpy, w, gc, i + offset_x, (int) offset_y + (SCREEN_HEIGHT/4)*point, i-1 + offset_x, (int) offset_y + (SCREEN_HEIGHT/4)*prev_point);
-      //XDrawLine(dpy, w, gc, i, (int) 64 + 63*plots[plot_num][ind], i, 64);
-      prev_point = point;
-    }
-    XFlush(dpy);
-}*/
-
-
-/*
- * This plots a single point and moves the entire wave over.
- *
-void plot_wave(int plot_num, float value){
-    unsigned long _color_map[] = {0xFF,0xFF00,0xFF0000};
-    plots[plot_num][start_index[plot_num]] = value;
-    start_index[plot_num] = (start_index[plot_num]+1) % MAX_PLOT_LENGTH;
-    int ind;
-    int ind_prev;
-    unsigned long color;
-    
-    int offset_x = SCREEN_WIDTH/2 + 1;
-    int offset_y = SCREEN_HEIGHT/4;
-    
-    XSetForeground(dpy, gc, _color_map[plot_num]);
-    ind_prev = start_index[plot_num] % MAX_PLOT_LENGTH;
-    for(int i = 1; i < MAX_PLOT_LENGTH; i++){
-        ind = (start_index[plot_num] + i) % MAX_PLOT_LENGTH;
-//        XFillRectangle(dpy, w, gc, i, (int) 64 + 63*plots[plot_num][ind], 1, 1);
-        XDrawLine(dpy, w, gc, i + offset_x, (int) offset_y + (SCREEN_HEIGHT/4)*plots[plot_num][ind], i-1 + offset_x, (int) offset_y + (SCREEN_HEIGHT/4)*plots[plot_num][ind_prev]);
-        //XDrawLine(dpy, w, gc, i, (int) 64 + 63*plots[plot_num][ind], i, 64);
-        ind_prev = ind;
-    }
-    XFlush(dpy);
-    }*/
 
 void del_window(){
     XDestroyWindow(dpy, w);

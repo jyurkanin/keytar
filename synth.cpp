@@ -82,7 +82,7 @@ void FmSimpleAlg::getControlMap(char mapping[18][50], int& len, int c_num){
     sprintf(mapping[0], "%s", "Modulator Operator");
     sprintf(mapping[1], "Octave = %d", controllers[1].get_slider(0)/8);
     sprintf(mapping[2], "Detune = %f", controllers[1].get_knob(0)/128.0);
-    sprintf(mapping[3], "Waveform = %d              ", controllers[1].get_knob(2)/32);
+    sprintf(mapping[3], "Waveform = %d               ", controllers[1].get_knob(2)/32);
     len = 4;
   }
   else{
