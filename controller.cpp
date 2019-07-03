@@ -10,9 +10,9 @@ pthread_t Controller::c_thread;
 Controller *Controller::active_controller;
 
 Controller::Controller(){
-  memset(slider, 0, 9*sizeof(unsigned char));
-  memset(knob, 0, 9*sizeof(unsigned char));
-  memset(button, 0, 9*sizeof(unsigned char));
+  memset(slider, 0, 9*sizeof(int));
+  memset(knob, 0, 9*sizeof(int));
+  memset(button, 0, 9*sizeof(int));
   start = 0;
   stop = 0;
   record = 0;

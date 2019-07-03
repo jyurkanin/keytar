@@ -27,6 +27,7 @@ class Operator{
   Controller &controller;
   float output;
   float fm_input; //this aliases the output of another operator/function
+  float freq_;
   
   const static int IDLE = 1;
   const static int ATTACK = 2;

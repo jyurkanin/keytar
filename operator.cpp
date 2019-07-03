@@ -19,7 +19,7 @@ float saw(float t){
 }
 
 float square(float t){
-  return ((int) (fmod(t, PI_2)/M_PI))*2 - 1; //ranges from 0-1
+  return 1 - ((int) (fmod(t, PI_2)/M_PI))*2; //ranges from 0-1
 }
 
 
@@ -27,29 +27,58 @@ float square(float t){
 
 
 void Operator::tick(float freq, int t){
-  float fm_mod = controller.get_slider(0)*controller.get_knob(0)*fm_input*.0078125;
+  float fm_mod;
   int octave = controller.get_slider(1) / 8; //gives a range of 16 octaves
   float detune  = controller.get_knob(1) / 128.0;
-  freq *= (1 << octave)*(1+detune)/128.0;
-
+  float feedback = controller.get_knob(3) / 64.0;
+  
+  freq *= (1 << octave) / 128.0;
+  freq += (detune); //detune now ranges from 0 - 127 hz
+  
   if(controller.get_button(0)){ //button zero is exponential fm mod. Vs linear fm mod.
-  }
-  else{
-    switch(controller.get_knob(2)/32){
+    fm_mod = pow(2, controller.get_slider(0)*controller.get_knob(0)*fm_input*.0078125);
+    fm_mod += feedback*output;
+    switch(controller.get_knob(2)/26){
     case 0:
       output = sin(OMEGA*t*freq + fm_mod);
       break;
     case 1:
-      output = tri(OMEGA*t*freq + fm_mod);
+      output = abs(2*sin(OMEGA*t*freq + fm_mod)) - 1;
       break;
     case 2:
-      output = saw(OMEGA*t*freq + fm_mod);
+      output = tri(OMEGA*t*freq + fm_mod);
       break;
     case 3:
+      output = saw(OMEGA*t*freq + fm_mod);
+      break;
+    case 4:
       output = square(OMEGA*t*freq + fm_mod);
       break;
     }
   }
+  else{
+    fm_mod = controller.get_slider(0)*controller.get_knob(0)*fm_input*.0078125;
+    fm_mod += feedback*output;
+    switch(controller.get_knob(2)/26){
+    case 0:
+      output = sin(OMEGA*t*freq + fm_mod);
+      break;
+    case 1:
+      output = abs(2*sin(OMEGA*t*freq + fm_mod)) - 1;
+      break;
+    case 2:
+      output = tri(OMEGA*t*freq + fm_mod);
+      break;
+    case 3:
+      output = saw(OMEGA*t*freq + fm_mod);
+      break;
+    case 4:
+      output = square(OMEGA*t*freq + fm_mod);
+      break;
+    }
+  }
+  
+  freq_ = freq;
 }
 
 //t is the total time on.

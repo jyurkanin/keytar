@@ -33,7 +33,8 @@ class SynthAlg{
   static const int OSC_ALG = 0;
   static const int SWORD_ALG = 1;
   static const int FM_SIMPLE_ALG = 2;
-  static const int WAVE_TABLE_ALG = 3;
+  static const int FM_THREE_ALG = 3;
+  static const int WAVE_TABLE_ALG = 4;
 };
 
 class OscAlg : public SynthAlg{
@@ -74,9 +75,24 @@ class FmSimpleAlg : public SynthAlg{
   int getNumControllers(){return 2;}
 };
 
+class FmThreeAlg : public SynthAlg{
+ public:
+  Operator carrier;
+  Operator modulator1;
+  Operator modulator2;
+  
+ FmThreeAlg() : SynthAlg(3), carrier(controllers[0]), modulator1(controllers[1]), modulator2(controllers[2]){};
+  ~FmThreeAlg(){};
+  float tick(float freq, int t, int s, int& state);
+  void getControlMap( char mapping[18][50], int& len, int c_num);
+  Envelope getEnvelope(int i);
+  void setData(unsigned char* data, int len){}
+  int getNumControllers(){return 3;}
+};
+
 class WaveTableAlg : public SynthAlg{
  public:
-  WaveTableAlg() : SynthAlg(3){};
+  WaveTableAlg() : SynthAlg(4){};
   ~WaveTableAlg(){};
   float tick(float freq, int t, int s, int& state);
   void getControlMap( char mapping[18][50], int& len, int c_num);

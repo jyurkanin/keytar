@@ -39,8 +39,9 @@ void save_program(char* filename){
     out << synth_algorithms[i]->s_func << "\n";
   }
 
-  unsigned char slider[9];
-  unsigned char knob[9];
+  int slider[9];
+  int knob[9];
+  int buttons[9];
   
   memcpy(slider, main_controller.slider, sizeof(slider));
   memcpy(knob, main_controller.knob, sizeof(knob));
@@ -51,24 +52,28 @@ void save_program(char* filename){
   for(int j = 0; j < 9; j++){
     out << main_controller.knob[j] << " ";
   }
-  out << "\n";
 
   int num_controllers;
   
   for(int i = 0; i < synth_algorithms.size(); i++){
     num_controllers = synth_algorithms[i]->getNumControllers();
-    out << num_controllers << " ";
+    out << num_controllers << "\n";
+    
     for(int j = 0; j < num_controllers; j++){
       memcpy(slider, synth_algorithms[i]->controllers[j].slider, sizeof(slider));
       memcpy(knob, synth_algorithms[i]->controllers[j].knob, sizeof(knob));
+      memcpy(buttons, synth_algorithms[i]->controllers[j].button, sizeof(buttons));
+      
       for(int k = 0; k < 9; k++){
 	out << slider[k] << " ";
       }
       for(int k = 0; k < 9; k++){
 	out << knob[k] << " ";
       }
+      for(int k = 0; k < 9; k++){
+	out << buttons[k] << " ";
+      }
     }
-    out << "\n";
   }
 
   out.close();
@@ -86,7 +91,7 @@ void load_program(char* filename){
   in.open(file_path, std::ifstream::in);
   int num;
   in >> num; //whitespace delimited
-
+  
   int temp;
   for(int i = 0; i < num; i++){
     in >> temp;
@@ -103,12 +108,16 @@ void load_program(char* filename){
   int num_controllers;
   for(int i = 0; i < num; i++){
     in >> num_controllers;
+    printf("num_controllers %d\n", num_controllers);
     for(int k = 0; k < num_controllers; k++){
       for(int j = 0; j < 9; j++){
 	in >> synth_algorithms[i]->controllers[k].slider[j];
       }
       for(int j = 0; j < 9; j++){
 	in >> synth_algorithms[i]->controllers[k].knob[j];
+      }
+      for(int j = 0; j < 9; j++){
+	in >> synth_algorithms[i]->controllers[k].button[j];
       }
     }
   }
@@ -177,6 +186,9 @@ void addSynth(int alg){
     break;
   case SynthAlg::FM_SIMPLE_ALG:
     synth_algorithms.push_back(new FmSimpleAlg());
+    break;
+  case SynthAlg::FM_THREE_ALG:
+    synth_algorithms.push_back(new FmThreeAlg());
     break;
   case SynthAlg::WAVE_TABLE_ALG:
     synth_algorithms.push_back(new WaveTableAlg());
@@ -270,107 +282,6 @@ void *audio_thread(void *arg){
     return NULL;
 }
 
-
-/*void *audio_thread_old(void *arg){
-    stk::StkFrames temp;
-    stk::StkFrames temp_frames(441, 1);
-    stk::StkFrames looped_frames_window(441, 1);
-    float sum_frames[441*CHANNELS];
-    stk::StkFrames in_frames(44100, 1);
-    stk::StkFrames out_frames(44100, 1);
-    int err;
-    int num_pressed;
-    int frames_to_deliver;
-    int volume = 0;
-    int ip_algo = 0; //interpolation algorithm
-    
-    snd_pcm_state_t pcm_state;
-    int lowest_note;
-    int lowest_index;
-    
-    while(is_window_open()){
-        snd_pcm_wait(playback_handle, 100);
-        frames_to_deliver = snd_pcm_avail_update(playback_handle);
-        if ( frames_to_deliver == -EPIPE){
-	    snd_pcm_prepare(playback_handle);
-            printf("Epipe\n");
-            continue;
-        }
-        frames_to_deliver = frames_to_deliver > 441 ? 441 : frames_to_deliver;
-	if(frames_to_deliver == 0){
-	  printf("zeruh\n");
-	  continue;
-	}
-	
-        memset(sum_frames, 0, CHANNELS*441*sizeof(float));
-        num_pressed = 0;
-	lowest_note = 0;
-        for(int k = 21; k <= 108; k++){
-            if(midiNotesPressed[k] || midiNotesSustained[k]){
-                num_pressed++;
-		sample.volume[k] = midiNotesSustained[k] + midiNotesPressed[k];
-		
-                if(adsr[k].getState() == stk::ADSR::RELEASE || adsr[k].getState() == stk::ADSR::IDLE){ //detect keyOn
-		    printf("Key On\n");
-                    adsr[k].keyOn();
-                    sample.index[k] = 0;
-                }
-
-		if(!lowest_note){
-		  lowest_note = k;
-		  lowest_index = sample.index[k];
-		}
-                for(int j = 0; j < frames_to_deliver; j++){
-		  sum_frames[j] += adsr[k].tick(synthesize(k, sample.index[k], sample.volume[k]));
-		  sample.index[k]++;
-                }
-            }
-            else if(adsr[k].getState() != stk::ADSR::IDLE){ //note was released. Release.
-                num_pressed++;
-                if(adsr[k].getState() != stk::ADSR::RELEASE){ //detect keyOff
-		    printf("Key OFF\n");
-                    adsr[k].keyOff();
-                }
-		
-		if(!lowest_note){
-		  lowest_note = k;
-		  lowest_index = sample.index[k];
-		}
-                for(int j = 0; j < frames_to_deliver; j++){
-		    sum_frames[j] += adsr[k].tick(synthesize(k, sample.index[k], sample.volume[k]));
-                    sample.index[k]++;
-                }
-		
-                if(adsr[k].getState() == stk::ADSR::IDLE){
-                    sample.index[k] = 0;
-                }
-            }
-        }
-	
-	//	for(int j = 0; j < frames_to_deliver; j++){
-	//  sum_frames[j] = main_controller.get_knob(0)/128.0;//low_pass(sum_frames[j], main_controller.get_knob(0)/128.0);
-	//}
-
-	//ODDLY it reduces computational load a shit ton when this is allwed to run all the time. IDK bruh
-        if(num_pressed){
-	    set_wave_buffer(lowest_note, lowest_index, frames_to_deliver, sum_frames);
-	
-	    while((err = snd_pcm_writei (playback_handle, sum_frames, frames_to_deliver)) != frames_to_deliver && is_window_open()) {
-	      snd_pcm_prepare (playback_handle);
-	      pcm_state = snd_pcm_state(playback_handle);
-	      fprintf (stderr, "write to audio interface failed (%s)\n", snd_strerror (err));
-	    }
-	}
-	else{
-	  usleep(100);
-	}
-	
-	//else{
-	//    snd_pcm_prepare (playback_handle); //Everytime I use prepare it leaks a shit ton of memory.
-	//}
-    }
-    printf("Audio Thread is DEADBEEF\n");
-}*/
 
 int init_midi(int argc, char *argv[]){
   char *MIDI_DEVICE = argv[1];
@@ -500,12 +411,12 @@ void *midi_loop(void *ignoreme){
       break;
     case(PEDAL):
       if(sustain >= 64 && packet[2] < 64){ //if the sustain is released.
-	sustain = packet[2];
 	for(int i = 0; i < 128; i++){ //releases all the notes and sets the sustained notes to 0.
 	  midiNotesReleased[i] |= midiNotesSustained[i];
 	  midiNotesSustained[i] = 0;
 	}
       }
+      sustain = packet[2];
       break;
     case(PITCH_BEND):
       bend = packet[2];
@@ -515,42 +426,3 @@ void *midi_loop(void *ignoreme){
   printf("Piano Thread is DEADBEEF\n");
   return 0;
 }
-
-/*    
-      for(int t = 0; t < 2*88200; t++ ){
-        if(t < 44100) ep = pow(M_E, -t/4410.0);
-        mo = ep*(sin(11000*omega*t));
-        sound[t] = zero_filter.tick(.1*sin(440*t*omega + 100*mo));
-        }*/ //frequency modulation is cool as shit.
-
-/*    for(int t = 0; t < 44100; t++ ){
-        count = 4*abs(.5 - (t % (int)(44100 / gain)) * gain/44100.0) - 1;
-        if(t < 44100) ep = pow(M_E, -t/4410.0);
-        mo = ep*count;
-        sound[t] = zero_filter.tick(.5*sin(440*t*omega*mo));
-        }*/ //triangle wave is best wave
-
-/*    for(int t = 0; t < 44100; t++ ){
-        count = sin(pitch*omega*t);
-        if(count > .95) count = 0;
-        else if(count < -.95) count = 0;
-        
-//        if(t > 4410) count = 0;
-//        mo = count*(sin(440*omega*t));
-        sound[t] = count;
-        }*/
-
-/*if(t < 1920){
-            clear_wave();
-//            printf("%f\n", temp1);
-            plot_wave(0, temp1/(gain*2));
-            plot_wave(1, temp2/(2*2));
-            plot_wave(2, sound[t]);
-            usleep(1000);
-
-        }
-	}*/
-    
-//    for(int i = 0; i < 100; i++){
-//        set_wave_buffer(0, sound+(i*441));
-//    }

@@ -253,13 +253,14 @@ void *sy_window_thread(void * arg){
 
 
 //this is in the bottom left
-int _DRAW_SYNTH_LEN = 4;
+int _DRAW_SYNTH_LEN = 5;
 int _DRAW_SYNTH_MSG_LEN = 20;
 const char * _DRAW_SYNTH_MSG[] =
-  {"Sin = 0             ",
+  {"Oscillator = 0             ",
    "Sword = 1           ",
    "FM_Simple = 2       ",
-   "WaveTable = 3       "};
+   "FM_Three = 3       ",
+   "WaveTable = 4       "};
 void draw_synth_selection_window(){
     clear_left();
     XSetForeground(dpy, gc, 0xFF);
@@ -412,8 +413,7 @@ void draw_fft(){
   XSetForeground(dpy, gc, 0xFF);
   
   int x_pos;
-  for(int i = 0; i < len/2; i++){
-    
+  for(int i = 0; i < len/2; i++){    
     x_pos = temp + (60*log(i)) + i;
     XDrawLine(dpy, w, gc, x_pos, SCREEN_HEIGHT - (fft_plot[i]*.1), x_pos, SCREEN_HEIGHT);
   }
@@ -435,7 +435,7 @@ void plot_wave(int plot_num, float value){
       point = wave_buffer.front();
       wave_buffer.pop_front();
       //        XFillRectangle(dpy, w, gc, i, (int) 64 + 63*plots[plot_num][ind], 1, 1);
-      XDrawLine(dpy, w, gc, i + offset_x, (int) offset_y + (SCREEN_HEIGHT/4)*point, i-1 + offset_x, (int) offset_y + (SCREEN_HEIGHT/4)*prev_point);
+      XDrawLine(dpy, w, gc, i + offset_x, (int) offset_y + (SCREEN_HEIGHT*.1)*point, i-1 + offset_x, (int) offset_y + (SCREEN_HEIGHT*.1)*prev_point);
       //XDrawLine(dpy, w, gc, i, (int) 64 + 63*plots[plot_num][ind], i, 64);
       prev_point = point;
     }
