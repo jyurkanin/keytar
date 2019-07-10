@@ -294,7 +294,7 @@ void draw_main_params(){
   }
 
   memset(line, 32, 60);
-  sprintf(line, "[Low Pass Frequency|%f]", main->get_knob(0) * 44100.0 / 128.0);
+  sprintf(line, "[Low Pass Frequency|%f]", main->get_knob(0) * 20000.0 / 128.0);
   XDrawString(dpy, w, gc, 1, 130, line, 38);
 }
 

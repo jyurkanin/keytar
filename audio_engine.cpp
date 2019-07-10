@@ -1,4 +1,5 @@
 #include "audio_engine.h"
+#include "filter.h"
 #include <fstream>
 #include <iostream>
 #include <fcntl.h>
@@ -21,10 +22,10 @@ std::vector<SynthAlg*> synth_algorithms;
 //int num_algorithms = 0;
 Controller main_controller;
 Sample sample;
-
+Filter *alg_filters[9];
 
 void breakOnMe(){
-    //break me on, Break on meeeeeee
+  //break me on, Break on meeeeeee
 }
 
 void save_program(char* filename){
@@ -155,10 +156,20 @@ float low_pass(float input, float freq){
  * 
  */
 float synthesize(int n, int t, int s, int volume, int& state){
+  static unsigned char old_knobs[9];
   float sample = 0;
+  float temp;
+  
+  for(int i = 0; i < 9; i++){
+    temp = main_controller.get_knob(i);
+    if(temp != old_knobs[i]){
+      old_knobs[i] = temp;
+      alg_filters[i]->setCutoff(temp*.0078125*20000);
+    }
+  }
   
   for(unsigned i = 0; i < synth_algorithms.size(); i++){
-    sample += main_controller.get_slider(i) * compute_algorithm(n, t, s, volume, i, state) / 128.0f;
+    sample += alg_filters[i]->tick(main_controller.get_slider(i) * compute_algorithm(n, t, s, volume, i, state) / 128.0f);
   }
   
   return sample;
@@ -364,6 +375,11 @@ int init_alsa(){
     snd_pcm_prepare(playback_handle);
 
     memset(&sample, 0, sizeof(sample));
+    
+    
+    for(int i = 0; i < 9; i++){
+      alg_filters[i] = new RFilter(.5, 20000);
+    }
     
     return EXIT_SUCCESS;
 }
