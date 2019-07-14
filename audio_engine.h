@@ -46,6 +46,7 @@ typedef struct{
 float compute_algorithm(int n, int t, int s, int volume, int alg_num, int& state);
 float compute_algorithm(float freq, int t, int s, int volume, int alg_num, int& state);
 float synthesize(int n, int t, int s, int volume, int& state);
+float synthesize(float freq, int t, int s, int volume, int& state);
 
 void activate_main_controller();
 void addSynth(int alg);
@@ -57,6 +58,9 @@ void save_program(char* filename);
 SynthAlg* getSynth(int num);
 int getNumAlgorithms();
 Controller* getMainController();
+
+int init_record();
+int exit_record();
 
 int init_alsa();
 int exit_alsa();

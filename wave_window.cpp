@@ -24,7 +24,10 @@ int is_buf_empty=0;
 int wave_period;
 std::deque<float> wave_buffer;
 
+float capture_fft[1764];
+int has_capture_data = 0;
 int is_window_alive;
+volatile int should_clear_buffer = 0;
 
 
 void init_window(){
@@ -50,11 +53,23 @@ void init_window(){
     pthread_create(&w_thread, NULL, &sy_window_thread, NULL);    
 }
 
+void set_capture_fft(float *f_series, int len){
+  memcpy(capture_fft, f_series, len);
+  has_capture_data = 1;
+}
+
+void clear_wave_buffer(){
+  //wave_buffer.clear(); //cant just do this. I think it causes a concurrency issue.
+  should_clear_buffer = 1;
+}
+
 void set_wave_buffer(int n, int t, int buf_len, float* values){ //values is W_SAMPLE_LEN long
   float freqs[12] = {27.5, 29.135, 30.868, 32.703, 34.648, 36.708, 38.891, 41.203, 43.654, 46.249, 48.999, 51.913}; // frequencies of the lowest octave
   float key =  freqs[(n-21) % 12];
   float freq = key  * (1 << (1+(int)(n-21)/12));
-  
+  set_wave_buffer(freq, t, buf_len, values);
+}
+void set_wave_buffer(float freq, int t, int buf_len, float* values){ //values is W_SAMPLE_LEN long
   float period = wave_period = (44100.0/freq);
   float fstart = period - fmod(t, period);
   int start = round(fstart);
@@ -64,12 +79,12 @@ void set_wave_buffer(int n, int t, int buf_len, float* values){ //values is W_SA
   static int toggle = 0;
   
   if(toggle){
-    if(wave_buffer.size() > (3*MAX_PLOT_LENGTH)){
+    if(wave_buffer.size() > (5*MAX_PLOT_LENGTH)){
       toggle = 0; //too big. toggle dont recieve any more until queue is empty
     }
   }
   else{
-    if(wave_buffer.size() < 2*MAX_PLOT_LENGTH){ //make sure the window always has something to display.
+    if(wave_buffer.size() < 4*MAX_PLOT_LENGTH){ //make sure the window always has something to display.
       toggle = 1;
     }
   }
@@ -149,6 +164,12 @@ void *sy_window_thread(void * arg){
     int controller_num = 0;
     
     while(1){
+
+      if(should_clear_buffer){
+	wave_buffer.clear();
+	should_clear_buffer = 0;
+      }
+      
       switch(cmd_state){
       case MAIN_STATE:
 	draw_main_window();
@@ -294,7 +315,7 @@ void draw_main_params(){
   }
 
   memset(line, 32, 60);
-  sprintf(line, "[Low Pass Frequency|%f]", main->get_knob(0) * 20000.0 / 128.0);
+  sprintf(line, "[Low Pass Frequency|%f]", main->get_knob(0) * 22000.0 / 128.0);
   XDrawString(dpy, w, gc, 1, 130, line, 38);
 }
 
@@ -401,21 +422,27 @@ void draw_wave(int plot){
 }
 
 void draw_fft(){
-  if(wave_buffer.size() < 2*W_SAMPLE_LEN) return;
-
-  float fft_plot[2*W_SAMPLE_LEN];
-  int temp = ((MAX_PLOT_LENGTH - (2*W_SAMPLE_LEN)) / 2) + (SCREEN_WIDTH/2);
-  int len = (2*W_SAMPLE_LEN) - fmod(2*W_SAMPLE_LEN, wave_period);
-  
-  calc_fft(wave_buffer.begin(), fft_plot, len);
-  
+  float fft_plot[4*W_SAMPLE_LEN];
+  int len = (4*W_SAMPLE_LEN) - fmod(4*W_SAMPLE_LEN, wave_period);
+      
   clear_bottom_right();
-  XSetForeground(dpy, gc, 0xFF);
+  if(wave_buffer.size() >= 4*W_SAMPLE_LEN){        
+    calc_fft(wave_buffer.begin(), fft_plot, len);
+    
+    graph_fft(fft_plot, len, 0xFF);
+  }
+  if(has_capture_data){
+    graph_fft(capture_fft, 1764, 0xFF00);
+  }
+}
+void graph_fft(float *fft_plot, int len, int color){
+  int temp = ((MAX_PLOT_LENGTH - (2*W_SAMPLE_LEN)) / 2) + (SCREEN_WIDTH/2);
+  XSetForeground(dpy, gc, color);
   
   int x_pos;
-  for(int i = 0; i < len/2; i++){    
-    x_pos = temp + (60*log(i)) + i;
-    XDrawLine(dpy, w, gc, x_pos, SCREEN_HEIGHT - (fft_plot[i]*.1), x_pos, SCREEN_HEIGHT);
+  for(int i = 0; i < len/4; i++){    
+    x_pos = temp + i;//temp + (60*log(i)) + i;
+    XDrawLine(dpy, w, gc, x_pos, SCREEN_HEIGHT - (fft_plot[i]*.1)-5, x_pos, SCREEN_HEIGHT);
   }
 }
 

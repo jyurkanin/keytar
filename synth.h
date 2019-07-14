@@ -22,6 +22,7 @@ class SynthAlg{
   int s_func;
   Controller controllers[10];
   SynthAlg(int s) : s_func(s){}
+  virtual void setVoice(int n) = 0;
   virtual float tick(float freq, int t, int s, int& state) = 0;
   virtual void getControlMap( char mapping[18][50], int& len, int c_num) = 0; //this is for printing out which knobs/sliders do what in the synth_state menu
   virtual Envelope getEnvelope(int i) = 0;
@@ -42,6 +43,7 @@ class OscAlg : public SynthAlg{
   Operator vc;
   OscAlg() : SynthAlg(0), vc(controllers[0]){};
   ~OscAlg(){};
+  void setVoice(int n);
   float tick(float freq, int t, int s, int& state);
   void getControlMap( char mapping[18][50], int& len, int c_num);
   Envelope getEnvelope(int i);
@@ -54,6 +56,7 @@ class SwordAlg : public SynthAlg{
   Operator op;
   SwordAlg() : SynthAlg(1), op(controllers[0]){};
   ~SwordAlg(){};
+  void setVoice(int n);
   float tick(float freq, int t, int s, int& state);
   void getControlMap( char mapping[18][50], int& len, int c_num);
   Envelope getEnvelope(int i);
@@ -68,6 +71,7 @@ class FmSimpleAlg : public SynthAlg{
   
   FmSimpleAlg() : SynthAlg(2), carrier(controllers[0]), modulator(controllers[1]){};
   ~FmSimpleAlg(){};
+  void setVoice(int n);
   float tick(float freq, int t, int s, int& state);
   void getControlMap( char mapping[18][50], int& len, int c_num);
   Envelope getEnvelope(int i);
@@ -83,6 +87,7 @@ class FmThreeAlg : public SynthAlg{
   
  FmThreeAlg() : SynthAlg(3), carrier(controllers[0]), modulator1(controllers[1]), modulator2(controllers[2]){};
   ~FmThreeAlg(){};
+  void setVoice(int n);
   float tick(float freq, int t, int s, int& state);
   void getControlMap( char mapping[18][50], int& len, int c_num);
   Envelope getEnvelope(int i);
@@ -94,6 +99,7 @@ class WaveTableAlg : public SynthAlg{
  public:
   WaveTableAlg() : SynthAlg(4){};
   ~WaveTableAlg(){};
+  void setVoice(int n);
   float tick(float freq, int t, int s, int& state);
   void getControlMap( char mapping[18][50], int& len, int c_num);
   Envelope getEnvelope(int i);

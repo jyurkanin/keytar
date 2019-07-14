@@ -25,6 +25,8 @@ void SynthAlg::getSynthName(char name[20]){
 }
 
 
+void SwordAlg::setVoice(int n){op.setVoice(0);} //do nothing.
+
 /*
  * At high knob values this kind of sounds like the sword pulling out of a sheath sound effect in movies
  */
@@ -33,9 +35,9 @@ float SwordAlg::tick(float freq, int t, int s, int &state){
   float ep = 0;
   if(t < 44100) ep = pow(M_E, -t/4410.0);
   mo = ep*(sin(freq*controllers[0].get_slider(0)*controllers[0].get_knob(0)*.03125*OMEGA*t));
-  op.output = sin(freq*t*OMEGA + controllers[0].get_slider(1)*controllers[0].get_knob(1)*.0078125*mo);
+  op.output[0] = sin(freq*t*OMEGA + controllers[0].get_slider(1)*controllers[0].get_knob(1)*.0078125*mo);
   op.envelope(t, s);
-  return op.output;
+  return op.output[0];
 }
 //mapping will be size 18 and len will say how short it actually is
 void SwordAlg::getControlMap(char mapping[18][50], int& len, int c_num){
@@ -65,16 +67,19 @@ Envelope SwordAlg::getEnvelope(int i){
 
 
 
-
+void FmSimpleAlg::setVoice(int n){
+  modulator.setVoice(n);
+  carrier.setVoice(n);
+}
 
 float FmSimpleAlg::tick(float freq, int t, int s, int &state){
   modulator.tick(freq, t);
   modulator.envelope(t, s);
   
-  carrier.fm_input = modulator.output;
+  carrier.fm_input = modulator.getOutput();
   carrier.tick(freq, t);
   state = carrier.envelope(t, s);
-  return carrier.output;
+  return carrier.getOutput();
 }
 void FmSimpleAlg::getControlMap(char mapping[18][50], int& len, int c_num){
   if(c_num == 0){
@@ -120,21 +125,25 @@ Envelope FmSimpleAlg::getEnvelope(int i){
 
 
 
-
+void FmThreeAlg::setVoice(int n){
+  modulator2.setVoice(n);
+  modulator1.setVoice(n);
+  carrier.setVoice(n);
+}
 
 float FmThreeAlg::tick(float freq, int t, int s, int &state){
   modulator2.tick(freq, t);
   modulator2.envelope(t, s);
 
-  modulator1.fm_input = modulator2.output;
+  modulator1.fm_input = modulator2.getOutput();
   modulator1.tick(freq, t);
   modulator1.envelope(t, s);
   
-  carrier.fm_input = modulator1.output;
+  carrier.fm_input = modulator1.getOutput();
   carrier.tick(freq, t);
   state = carrier.envelope(t, s);
   
-  return carrier.output;
+  return carrier.getOutput();
 }
 void FmThreeAlg::getControlMap(char mapping[18][50], int& len, int c_num){
   if(c_num == 0){
@@ -194,12 +203,14 @@ Envelope FmThreeAlg::getEnvelope(int i){
 
 
 
-
+void OscAlg::setVoice(int n){
+  vc.setVoice(n);
+}
 
 float OscAlg::tick(float freq, int t, int s, int &state){
   vc.tick(freq, t);
   state = vc.envelope(t, s);
-  return vc.output;
+  return vc.getOutput();
 }
 void OscAlg::getControlMap(char mapping[18][50], int& len, int c_num){
   if(c_num == 0){
@@ -268,6 +279,10 @@ Envelope OscAlg::getEnvelope(int i){
 }
 */
 
+void WaveTableAlg::setVoice(int n){
+  
+}
+
 void WaveTableAlg::setData(unsigned char* data, int len){
   
 }
@@ -289,18 +304,6 @@ Envelope WaveTableAlg::getEnvelope(int i){
   Envelope e;
   return e;
 }
-
-
-/*float compute_sample2(int n, int t){
-    float freq = freqs[(n-21) % 12] * (1 << (1+(int)(n-21)/12) );
-    float mo;
-    float omega = 2*M_PI/44100.0;
-    float ep = 0;    
-    if(t < 44100) ep = pow(M_E, -t/4410.0);
-    mo = ep*(sin(freq*25*omega*t));
-    return sin(freq*t*omega + 1000*mo);
-}*/
-
 
 float WaveTableAlg::tick(float freq, int t, int s, int& state){
   float step = controllers[0].get_knob(8) * 128.0 / 44100.0f;

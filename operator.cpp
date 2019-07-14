@@ -37,43 +37,43 @@ void Operator::tick(float freq, int t){
   
   if(controller.get_button(0)){ //button zero is exponential fm mod. Vs linear fm mod.
     fm_mod = pow(2, controller.get_slider(0)*controller.get_knob(0)*fm_input*.0078125);
-    fm_mod += feedback*output;
+    fm_mod += feedback*output[voice];
     switch(controller.get_knob(2)/26){
     case 0:
-      output = sin(OMEGA*t*freq + fm_mod);
+      output[voice] = sin(OMEGA*t*freq + fm_mod);
       break;
     case 1:
-      output = abs(2*sin(OMEGA*t*freq + fm_mod)) - 1;
+      output[voice] = abs(2*sin(OMEGA*t*freq + fm_mod)) - 1;
       break;
     case 2:
-      output = tri(OMEGA*t*freq + fm_mod);
+      output[voice] = tri(OMEGA*t*freq + fm_mod);
       break;
     case 3:
-      output = saw(OMEGA*t*freq + fm_mod);
+      output[voice] = saw(OMEGA*t*freq + fm_mod);
       break;
     case 4:
-      output = square(OMEGA*t*freq + fm_mod);
+      output[voice] = square(OMEGA*t*freq + fm_mod);
       break;
     }
   }
   else{
     fm_mod = controller.get_slider(0)*controller.get_knob(0)*fm_input*.0078125;
-    fm_mod += feedback*output;
+    fm_mod += feedback*output[voice];
     switch(controller.get_knob(2)/26){
     case 0:
-      output = sin(OMEGA*t*freq + fm_mod);
+      output[voice] = sin(OMEGA*t*freq + fm_mod);
       break;
     case 1:
-      output = abs(2*sin(OMEGA*t*freq + fm_mod)) - 1;
+      output[voice] = abs(2*sin(OMEGA*t*freq + fm_mod)) - 1;
       break;
     case 2:
-      output = tri(OMEGA*t*freq + fm_mod);
+      output[voice] = tri(OMEGA*t*freq + fm_mod);
       break;
     case 3:
-      output = saw(OMEGA*t*freq + fm_mod);
+      output[voice] = saw(OMEGA*t*freq + fm_mod);
       break;
     case 4:
-      output = square(OMEGA*t*freq + fm_mod);
+      output[voice] = square(OMEGA*t*freq + fm_mod);
       break;
     }
   }
@@ -94,23 +94,23 @@ int Operator::envelope(int t, int s){
   
   //this is going to assume that the note is on.
   if(t < attack_time_norm){
-    output *= (t/attack_time_norm)*attack_level_norm;
+    output[voice] *= (t/attack_time_norm)*attack_level_norm;
     return ATTACK;
   }
   else if(t < (attack_time_norm + decay_time_norm)){
-    output *= attack_level_norm - (((t - attack_time_norm)/decay_time_norm)*(attack_level_norm - sustain_level_norm));
+    output[voice] *= attack_level_norm - (((t - attack_time_norm)/decay_time_norm)*(attack_level_norm - sustain_level_norm));
     return DECAY;
   }
   else if(s == 0){
-    output *= sustain_level_norm;
+    output[voice] *= sustain_level_norm;
     return SUSTAIN;
   }
   else if(s < release_time_norm){
-    output *= sustain_level_norm * (1 - ((float)s / release_time_norm));
+    output[voice] *= sustain_level_norm * (1 - ((float)s / release_time_norm));
     return RELEASE;
   }
   else{
-    output = 0;
+    output[voice] = 0;
     return IDLE;
   }
 }

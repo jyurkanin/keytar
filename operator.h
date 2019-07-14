@@ -21,11 +21,14 @@ float tri(float t);
 class Operator{
  public:
   Operator(Controller &c) : controller(c){};
+  void setVoice(int n){voice = n;}
+  float getOutput(){return output[voice];}
   void tick(float freq, int t);
   int envelope(int t, int s);
   
   Controller &controller;
-  float output;
+  int voice; //which voice. To prevent interference with the feedback part.
+  float output[128];
   float fm_input; //this aliases the output of another operator/function
   float freq_;
   

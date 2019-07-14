@@ -125,7 +125,7 @@ void *Controller::read_controller(void *nothing){
   unsigned char temp;
   while(is_window_open()){
     if(read(controllerFD, &temp, sizeof(temp)) <= 0){
-      usleep(100);
+      usleep(1000);
       continue;
     }
     else{
@@ -192,7 +192,12 @@ void Controller::activate(){
 }
 
 int Controller::init_controller(int argc, char *argv[]){
-  char *midi_controller = argv[2];
+  char *midi_controller;
+  if(argc == 3)
+   midi_controller = argv[2];
+  else{
+    midi_controller = argv[1];
+  }
   int flags;
   controllerFD = open(midi_controller, O_RDONLY);
 

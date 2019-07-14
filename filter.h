@@ -17,7 +17,12 @@ class LPFilter : public Filter{
   void setQFactor(float); //doesnt have a q factor
  private:
   float alpha;
-  float y_n_1;
+  float y_n[3];
+  float x_n[3];
+  float a[3];
+  float b[3];
+  float fc_old;
+  float qf_old;
 };
 
 class RFilter : public Filter{
