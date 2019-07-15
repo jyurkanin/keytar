@@ -15,21 +15,22 @@ LPFilter::LPFilter(float fc){
   a[1] = -2*cos(w0);
   a[2] = 1 - alpha;
 
+  voice = 0;
   for(int i = 0; i < 3; i++){
-    x_n[0] = y_n[0] = 0;
+    x_n[voice][0] = y_n[voice][0] = 0;
   }
   
 }
 
 float LPFilter::tick(float xn){
-  x_n[2] = x_n[1];
-  x_n[1] = x_n[0];
-  x_n[0] = xn;
+  x_n[voice][2] = x_n[voice][1];
+  x_n[voice][1] = x_n[voice][0];
+  x_n[voice][0] = xn;
   
-  y_n[2] = y_n[1];
-  y_n[1] = y_n[0];
-  y_n[0] = (x_n[0]*b[0]/a[0]) + (x_n[1]*b[1]/a[0]) + (x_n[2]*b[2]/a[0]) - (y_n[1]*a[1]/a[0]) - (y_n[2]*a[2]/a[0]);
-  return y_n[0];
+  y_n[voice][2] = y_n[voice][1];
+  y_n[voice][1] = y_n[voice][0];
+  y_n[voice][0] = (x_n[voice][0]*b[0]/a[0]) + (x_n[voice][1]*b[1]/a[0]) + (x_n[voice][2]*b[2]/a[0]) - (y_n[voice][1]*a[1]/a[0]) - (y_n[voice][2]*a[2]/a[0]);
+  return y_n[voice][0];
 }
 
 void LPFilter::setCutoff(float fc){
@@ -67,6 +68,8 @@ RFilter::RFilter(float r, float fc){
   r_ = r;
   fc_ = fc;
   
+  voice = 0;
+  
   alpha[0] = -2*r*cos(OMEGA*fc);
   alpha[1] = r*r;
   
@@ -76,17 +79,17 @@ RFilter::RFilter(float r, float fc){
 }
 
 float RFilter::tick(float xn){
-  y_n[2] = y_n[1];
-  y_n[1] = y_n[0];
+  y_n[voice][2] = y_n[voice][1];
+  y_n[voice][1] = y_n[voice][0];
 
-  x_n[2] = x_n[1];
-  x_n[1] = x_n[0];
+  x_n[voice][2] = x_n[voice][1];
+  x_n[voice][1] = x_n[voice][0];
   
-  x_n[0] = xn;
-  y_n[0] = beta[0]*x_n[0] + beta[1]*x_n[1] + beta[2]*x_n[2];
-  y_n[0] -= alpha[0]*y_n[1] + alpha[1]*y_n[2];
+  x_n[voice][0] = xn;
+  y_n[voice][0] = beta[0]*x_n[voice][0] + beta[1]*x_n[voice][1] + beta[2]*x_n[voice][2];
+  y_n[voice][0] -= alpha[0]*y_n[voice][1] + alpha[1]*y_n[voice][2];
   
-  return y_n[0];
+  return y_n[voice][0];
 }
 
 void RFilter::setCutoff(float fc){
@@ -109,6 +112,10 @@ void RFilter::setQFactor(float r){
   beta[2] = -beta[0];
 }
 
+void RLPFilter::setVoice(int n){
+  rf.setVoice(n);
+  lpf.setVoice(n);
+}
 
 float RLPFilter::tick(float xn){
   return rf.tick(xn) + lpf.tick(xn);

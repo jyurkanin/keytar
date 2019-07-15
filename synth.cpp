@@ -37,7 +37,8 @@ float SwordAlg::tick(float freq, int t, int s, int &state){
   mo = ep*(sin(freq*controllers[0].get_slider(0)*controllers[0].get_knob(0)*.03125*OMEGA*t));
   op.output[0] = sin(freq*t*OMEGA + controllers[0].get_slider(1)*controllers[0].get_knob(1)*.0078125*mo);
   op.envelope(t, s);
-  return op.output[0];
+  op.filter(t, s);
+  return op.getOutput();
 }
 //mapping will be size 18 and len will say how short it actually is
 void SwordAlg::getControlMap(char mapping[18][50], int& len, int c_num){
@@ -53,11 +54,21 @@ void SwordAlg::getControlMap(char mapping[18][50], int& len, int c_num){
 
 Envelope SwordAlg::getEnvelope(int i){
   Envelope e;
-  e.attack_time = controllers[0].get_slider(2) * .0078125; //the actual attack time = (attack_time / 128) * 441000
-  e.attack_level = controllers[0].get_slider(5)*.0078125;
-  e.decay_time = controllers[0].get_slider(3) * .0078125;
-  e.sustain_level = controllers[0].get_slider(6)*.0078125;
-  e.release_time = controllers[0].get_slider(4) * .0078125;
+  if(i != 0) return e;
+  if(i % 2 == 0){
+    e.attack_time = controllers[0].get_slider(2) * .0078125; //the actual attack time = (attack_time / 128) * 441000
+    e.attack_level = controllers[0].get_slider(5)*.0078125;
+    e.decay_time = controllers[0].get_slider(3) * .0078125;
+    e.sustain_level = controllers[0].get_slider(6)*.0078125;
+    e.release_time = controllers[0].get_slider(4) * .0078125;
+  }
+  else{
+    e.attack_time = controllers[0].get_knob(4) * .0078125; //the actual attack time = (attack_time / 128) * 441000
+    e.attack_level = controllers[0].get_knob(7)*.0078125;
+    e.decay_time = controllers[0].get_knob(5) * .0078125;
+    e.sustain_level = controllers[0].get_knob(8)*.0078125;
+    e.release_time = controllers[0].get_knob(6) * .0078125;
+  }
   return e;
 }
 
@@ -75,10 +86,12 @@ void FmSimpleAlg::setVoice(int n){
 float FmSimpleAlg::tick(float freq, int t, int s, int &state){
   modulator.tick(freq, t);
   modulator.envelope(t, s);
+  modulator.filter(t, s);
   
   carrier.fm_input = modulator.getOutput();
   carrier.tick(freq, t);
   state = carrier.envelope(t, s);
+  carrier.filter(t, s);
   return carrier.getOutput();
 }
 void FmSimpleAlg::getControlMap(char mapping[18][50], int& len, int c_num){
@@ -89,7 +102,7 @@ void FmSimpleAlg::getControlMap(char mapping[18][50], int& len, int c_num){
     sprintf(mapping[3], "Waveform = %d", controllers[0].get_knob(2)/26);
     sprintf(mapping[4], "FM Gain = %f", controllers[0].get_slider(0) * controllers[0].get_knob(0) * .0078125);
     sprintf(mapping[5], "Feedback = %f", controllers[0].get_knob(3)/64.0);
-    if(controllers[0].get_button(0))
+    if(controllers[0].get_button(2))
       sprintf(mapping[6], "%s", "Exponential FM");
     else
       sprintf(mapping[6], "%s", "Linear FM");
@@ -111,11 +124,22 @@ void FmSimpleAlg::getControlMap(char mapping[18][50], int& len, int c_num){
 Envelope FmSimpleAlg::getEnvelope(int i){
   Envelope e;
   if(i >= 2) return e;
-  e.attack_time = controllers[i].get_slider(2) * .0078125; //the actual attack time = (attack_time / 128) * 441000
-  e.attack_level = controllers[i].get_slider(5)*.0078125;
-  e.decay_time = controllers[i].get_slider(3) * .0078125;
-  e.sustain_level = controllers[i].get_slider(6)*.0078125;
-  e.release_time = controllers[i].get_slider(4) * .0078125;
+
+  if(i % 2){
+    e.attack_time = controllers[i/2].get_slider(2) * .0078125; //the actual attack time = (attack_time / 128) * 441000
+    e.attack_level = controllers[i/2].get_slider(5)*.0078125;
+    e.decay_time = controllers[i/2].get_slider(3) * .0078125;
+    e.sustain_level = controllers[i/2].get_slider(6)*.0078125;
+    e.release_time = controllers[i/2].get_slider(4) * .0078125;
+  }
+  else{
+    e.attack_time = controllers[i/2].get_knob(4) * .0078125; //the actual attack time = (attack_time / 128) * 441000
+    e.attack_level = controllers[i/2].get_knob(7)*.0078125;
+    e.decay_time = controllers[i/2].get_knob(5) * .0078125;
+    e.sustain_level = controllers[i/2].get_knob(8)*.0078125;
+    e.release_time = controllers[i/2].get_knob(6) * .0078125;
+  }
+
   return e;
 }
 
@@ -134,14 +158,17 @@ void FmThreeAlg::setVoice(int n){
 float FmThreeAlg::tick(float freq, int t, int s, int &state){
   modulator2.tick(freq, t);
   modulator2.envelope(t, s);
+  modulator2.filter(t, s);
 
   modulator1.fm_input = modulator2.getOutput();
   modulator1.tick(freq, t);
   modulator1.envelope(t, s);
+  modulator1.filter(t, s);
   
   carrier.fm_input = modulator1.getOutput();
   carrier.tick(freq, t);
   state = carrier.envelope(t, s);
+  carrier.filter(t, s);
   
   return carrier.getOutput();
 }
@@ -153,7 +180,7 @@ void FmThreeAlg::getControlMap(char mapping[18][50], int& len, int c_num){
     sprintf(mapping[3], "Waveform = %d", controllers[0].get_knob(2)/26);
     sprintf(mapping[4], "FM Gain = %f", controllers[0].get_slider(0) * controllers[0].get_knob(0) * .0078125);
     sprintf(mapping[5], "Feedback = %f", controllers[0].get_knob(3)/64.0);
-    if(controllers[0].get_button(0))
+    if(controllers[0].get_button(2))
       sprintf(mapping[6], "%s", "Exponential FM");
     else
       sprintf(mapping[6], "%s", "Linear FM");
@@ -166,7 +193,7 @@ void FmThreeAlg::getControlMap(char mapping[18][50], int& len, int c_num){
     sprintf(mapping[3], "Waveform = %d", controllers[1].get_knob(2)/26);
     sprintf(mapping[4], "FM Gain = %f", controllers[1].get_slider(0) * controllers[1].get_knob(0) * .0078125);
     sprintf(mapping[5], "Feedback = %f", controllers[1].get_knob(3)/64.0);
-    if(controllers[1].get_button(0))
+    if(controllers[1].get_button(2))
       sprintf(mapping[6], "%s", "Exponential FM");
     else
       sprintf(mapping[6], "%s", "Linear FM");
@@ -188,11 +215,21 @@ void FmThreeAlg::getControlMap(char mapping[18][50], int& len, int c_num){
 Envelope FmThreeAlg::getEnvelope(int i){
   Envelope e;
   if(i >= 3) return e;
-  e.attack_time = controllers[i].get_slider(2) * .0078125;
-  e.attack_level = controllers[i].get_slider(5)*.0078125;
-  e.decay_time = controllers[i].get_slider(3) * .0078125;
-  e.sustain_level = controllers[i].get_slider(6)*.0078125;
-  e.release_time = controllers[i].get_slider(4) * .0078125;
+  
+  if(i % 2){
+    e.attack_time = controllers[i/2].get_slider(2) * .0078125; //the actual attack time = (attack_time / 128) * 441000
+    e.attack_level = controllers[i/2].get_slider(5)*.0078125;
+    e.decay_time = controllers[i/2].get_slider(3) * .0078125;
+    e.sustain_level = controllers[i/2].get_slider(6)*.0078125;
+    e.release_time = controllers[i/2].get_slider(4) * .0078125;
+  }
+  else{
+    e.attack_time = controllers[i/2].get_knob(4) * .0078125; //the actual attack time = (attack_time / 128) * 441000
+    e.attack_level = controllers[i/2].get_knob(7)*.0078125;
+    e.decay_time = controllers[i/2].get_knob(5) * .0078125;
+    e.sustain_level = controllers[i/2].get_knob(8)*.0078125;
+    e.release_time = controllers[i/2].get_knob(6) * .0078125;
+  }
   return e;
 }
 
@@ -210,6 +247,7 @@ void OscAlg::setVoice(int n){
 float OscAlg::tick(float freq, int t, int s, int &state){
   vc.tick(freq, t);
   state = vc.envelope(t, s);
+  vc.filter(t, s);
   return vc.getOutput();
 }
 void OscAlg::getControlMap(char mapping[18][50], int& len, int c_num){
@@ -227,11 +265,21 @@ void OscAlg::getControlMap(char mapping[18][50], int& len, int c_num){
 
 Envelope OscAlg::getEnvelope(int i){
   Envelope e;
-  e.attack_time = controllers[0].get_slider(2) * .0078125; //the actual attack time = (attack_time / 128) * 441000
-  e.attack_level = controllers[0].get_slider(5)*.0078125;
-  e.decay_time = controllers[0].get_slider(3) * .0078125;
-  e.sustain_level = controllers[0].get_slider(6)*.0078125;
-  e.release_time = controllers[0].get_slider(4) * .0078125;
+  if( i >= 2) return e;
+  if(i % 2){
+    e.attack_time = controllers[i/2].get_knob(4) * .0078125; //the actual attack time = (attack_time / 128) * 441000
+    e.attack_level = controllers[i/2].get_knob(7)*.0078125;
+    e.decay_time = controllers[i/2].get_knob(5) * .0078125;
+    e.sustain_level = controllers[i/2].get_knob(8)*.0078125;
+    e.release_time = controllers[i/2].get_knob(6) * .0078125;
+  }  
+  else{
+    e.attack_time = controllers[i/2].get_slider(2) * .0078125; //the actual attack time = (attack_time / 128) * 441000
+    e.attack_level = controllers[i/2].get_slider(5)*.0078125;
+    e.decay_time = controllers[i/2].get_slider(3) * .0078125;
+    e.sustain_level = controllers[i/2].get_slider(6)*.0078125;
+    e.release_time = controllers[i/2].get_slider(4) * .0078125;
+  }
   return e;
 }
 

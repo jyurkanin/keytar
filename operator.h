@@ -1,5 +1,6 @@
 #include <math.h>
 #include "controller.h"
+#include "filter.h"
 
 #define OMEGA (2*M_PI/44100.0) //sample rate adjusted conversion from Hz to rad/s
 #define HALF_PI 1.57079632675
@@ -12,25 +13,32 @@
 float tri(float t);
 
 /*
- * An Operator is a Voltage Controlled Oscillator Paired with an Envelope
+ * An Operator is a Voltage Controlled Oscillator Paired with two Envelopes
+ * One envelope for the filter, one for the amplitude
  * An Operator has an associated Controller. Which controls the oscillator
- * modulation and the envelope for that oscillator.
+ * modulation and the envelopes for that oscillator.
  */
 
 
 class Operator{
  public:
-  Operator(Controller &c) : controller(c){};
-  void setVoice(int n){voice = n;}
+ Operator(Controller &c) : controller(c), lp_filter(22000), r_filter(.5, 22000){};
+  void setVoice(int n){voice = n; r_filter.setVoice(n); lp_filter.setVoice(n);}
   float getOutput(){return output[voice];}
   void tick(float freq, int t);
   int envelope(int t, int s);
+  int filter(int t, int s);
   
   Controller &controller;
+
+  RFilter r_filter;
+  LPFilter lp_filter;
+  
   int voice; //which voice. To prevent interference with the feedback part.
   float output[128];
   float fm_input; //this aliases the output of another operator/function
   float freq_;
+
   
   const static int IDLE = 1;
   const static int ATTACK = 2;

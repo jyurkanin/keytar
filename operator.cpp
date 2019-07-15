@@ -33,9 +33,9 @@ void Operator::tick(float freq, int t){
   float feedback = controller.get_knob(3) / 64.0;
   
   freq *= (1 << octave) / 128.0;
-  freq += (detune); //detune now ranges from 0 - 127 hz
+  freq *= (1+(detune/128.0)); //detune now ranges from 0 - 127 hz
   
-  if(controller.get_button(0)){ //button zero is exponential fm mod. Vs linear fm mod.
+  if(controller.get_button(2)){ //button zero is exponential fm mod. Vs linear fm mod.
     fm_mod = pow(2, controller.get_slider(0)*controller.get_knob(0)*fm_input*.0078125);
     fm_mod += feedback*output[voice];
     switch(controller.get_knob(2)/26){
@@ -43,7 +43,7 @@ void Operator::tick(float freq, int t){
       output[voice] = sin(OMEGA*t*freq + fm_mod);
       break;
     case 1:
-      output[voice] = abs(2*sin(OMEGA*t*freq + fm_mod)) - 1;
+      output[voice] = abs(2*sin(OMEGA*t*freq*.5 + fm_mod)) - 1;
       break;
     case 2:
       output[voice] = tri(OMEGA*t*freq + fm_mod);
@@ -64,7 +64,7 @@ void Operator::tick(float freq, int t){
       output[voice] = sin(OMEGA*t*freq + fm_mod);
       break;
     case 1:
-      output[voice] = abs(2*sin(OMEGA*t*freq + fm_mod)) - 1;
+      output[voice] = abs(2*sin(OMEGA*t*freq*.5 + fm_mod)) - 1;
       break;
     case 2:
       output[voice] = tri(OMEGA*t*freq + fm_mod);
@@ -113,4 +113,48 @@ int Operator::envelope(int t, int s){
     output[voice] = 0;
     return IDLE;
   }
+}
+
+
+//t is the total time on.
+//s is the time since it was released
+int Operator::filter(int t, int s){
+  float attack_time_norm = controller.get_knob(4) * .0078125 * 44100.0; //the actual attack time = (attack_time / 128) * 441000
+  float decay_time_norm = controller.get_knob(5) * .0078125 * 44100.0;
+  float release_time_norm = controller.get_knob(6) * .0078125 * 44100.0;
+  
+  float attack_level_norm = controller.get_knob(7)*.0078125* (20000-freq_);
+  float sustain_level_norm = controller.get_knob(8)*.0078125* (20000-freq_);
+  
+  r_filter.setQFactor(controller.get_slider(7)/128.0);
+  lp_filter.setQFactor((1 + controller.get_slider(8))/12.8);
+
+  //this is going to assume that the note is on.
+  if(t < attack_time_norm){
+    r_filter.setCutoff((t/attack_time_norm)*attack_level_norm);
+    lp_filter.setCutoff((t/attack_time_norm)*attack_level_norm);
+  }
+  else if(t < (attack_time_norm + decay_time_norm)){
+    r_filter.setCutoff(attack_level_norm - (((t - attack_time_norm)/decay_time_norm)*(attack_level_norm - sustain_level_norm)));
+    lp_filter.setCutoff(attack_level_norm - (((t - attack_time_norm)/decay_time_norm)*(attack_level_norm - sustain_level_norm)));
+  }
+  else if(s == 0){
+    r_filter.setCutoff(sustain_level_norm);
+    lp_filter.setCutoff(sustain_level_norm);
+  }
+  else if(s < release_time_norm){
+    r_filter.setCutoff(sustain_level_norm * (1 - ((float)s / release_time_norm)));
+    lp_filter.setCutoff(sustain_level_norm * (1 - ((float)s / release_time_norm)));
+  }
+
+  if(controller.get_button(0) && controller.get_button(1)){
+    output[voice] = r_filter.tick(output[voice]) + lp_filter.tick(output[voice]);
+  }
+  else if(controller.get_button(0)){
+    output[voice] = r_filter.tick(output[voice]);
+  }
+  else if(controller.get_button(1)){
+    output[voice] = lp_filter.tick(output[voice]);
+  }
+  return 0;
 }

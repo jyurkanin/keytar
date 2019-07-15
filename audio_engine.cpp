@@ -411,13 +411,25 @@ void *audio_thread(void *arg){
 	  }
 	  
 	  rfilter.setCutoff(22000*.0078125*(1+main_controller.get_knob(0)));
-	  rfilter.setQFactor((1 + main_controller.get_knob(2))/128.0);
+	  rfilter.setQFactor(main_controller.get_knob(2)/128.0);
 	  
 	  lpfilter.setCutoff(22000*.0078125*(1+main_controller.get_knob(0)));
 	  lpfilter.setQFactor((1 + main_controller.get_knob(1))/12.8);
-	  
-	  for(int j = 0; j < frames_to_deliver; j++){
-	    sum_frames[j] = lpfilter.tick(sum_frames[j]) + rfilter.tick(sum_frames[j]);
+
+	  if(main_controller.get_button(0) && main_controller.get_button(1)){
+	    for(int j = 0; j < frames_to_deliver; j++){
+	      sum_frames[j] = lpfilter.tick(sum_frames[j]) + rfilter.tick(sum_frames[j]);
+	    }
+	  }
+	  else if(main_controller.get_button(0)){
+	    for(int j = 0; j < frames_to_deliver; j++){
+	      sum_frames[j] = lpfilter.tick(sum_frames[j]);
+	    }
+	  }
+	  else if(main_controller.get_button(1)){
+	    for(int j = 0; j < frames_to_deliver; j++){
+	      sum_frames[j] = rfilter.tick(sum_frames[j]);
+	    }
 	  }
 	  
 	  if(num_on){

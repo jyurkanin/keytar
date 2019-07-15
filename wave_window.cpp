@@ -338,15 +338,24 @@ void draw_synth_params(SynthAlg* synth, int active_controller_num){
   sum = 2;
   for(int j = 0; j < synth->getNumControllers(); j++){
     synth->getControlMap(mapping, len, j);
+    XSetForeground(dpy, gc, 0xFF);
     for(int i = 0; i < len; i++){
       XDrawString(dpy, w, gc, 1, (12*(i+sum)) + 12, mapping[i], 50);
     }
     sum += len+2;
     
-    e = synth->getEnvelope(j);
+    e = synth->getEnvelope(2*j); //EACH operator has two envelopes.
     offset_x = 300;
     offset_y = 12*(sum-2);
     
+    XDrawLine(dpy, w, gc, offset_x, offset_y, offset_x + (int)(e.attack_time*64), offset_y - (int)(e.attack_level*64));
+    XDrawLine(dpy, w, gc, offset_x + (int)(e.attack_time*64), offset_y - (int)(e.attack_level*64), offset_x + (int)((e.attack_time + e.decay_time)*64), offset_y - (int)(e.sustain_level*64));
+    XDrawLine(dpy, w, gc, offset_x + (int)((e.attack_time + e.decay_time)*64), offset_y - (int)(e.sustain_level*64), offset_x + (int)((e.attack_time + e.decay_time)*64) + 64, offset_y - (int)(e.sustain_level*64));
+    XDrawLine(dpy, w, gc, offset_x + (int)((e.decay_time + e.attack_time)*64) + 64, offset_y - (int)(e.sustain_level*64), offset_x + (int)((e.decay_time + e.attack_time + e.release_time)*64)+ 64, offset_y);
+
+    e = synth->getEnvelope(2*j + 1); //EACH operator has two envelopes.
+
+    XSetForeground(dpy, gc, 0xFF00);
     XDrawLine(dpy, w, gc, offset_x, offset_y, offset_x + (int)(e.attack_time*64), offset_y - (int)(e.attack_level*64));
     XDrawLine(dpy, w, gc, offset_x + (int)(e.attack_time*64), offset_y - (int)(e.attack_level*64), offset_x + (int)((e.attack_time + e.decay_time)*64), offset_y - (int)(e.sustain_level*64));
     XDrawLine(dpy, w, gc, offset_x + (int)((e.attack_time + e.decay_time)*64), offset_y - (int)(e.sustain_level*64), offset_x + (int)((e.attack_time + e.decay_time)*64) + 64, offset_y - (int)(e.sustain_level*64));
