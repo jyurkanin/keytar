@@ -123,7 +123,7 @@ void FmSimpleAlg::getControlMap(char mapping[18][50], int& len, int c_num){
 
 Envelope FmSimpleAlg::getEnvelope(int i){
   Envelope e;
-  if(i >= 2) return e;
+  if(i >= 4) return e;
 
   if(i % 2){
     e.attack_time = controllers[i/2].get_slider(2) * .0078125; //the actual attack time = (attack_time / 128) * 441000
@@ -214,7 +214,7 @@ void FmThreeAlg::getControlMap(char mapping[18][50], int& len, int c_num){
 
 Envelope FmThreeAlg::getEnvelope(int i){
   Envelope e;
-  if(i >= 3) return e;
+  if(i >= 6) return e;
   
   if(i % 2){
     e.attack_time = controllers[i/2].get_slider(2) * .0078125; //the actual attack time = (attack_time / 128) * 441000

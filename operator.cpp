@@ -129,24 +129,34 @@ int Operator::filter(int t, int s){
   r_filter.setQFactor(controller.get_slider(7)/128.0);
   lp_filter.setQFactor((1 + controller.get_slider(8))/12.8);
 
+  float r_cutoff;
+  float lp_cutoff;
+  
   //this is going to assume that the note is on.
   if(t < attack_time_norm){
-    r_filter.setCutoff((t/attack_time_norm)*attack_level_norm);
-    lp_filter.setCutoff((t/attack_time_norm)*attack_level_norm);
+    r_cutoff = (t/attack_time_norm)*attack_level_norm;
+    lp_cutoff = (t/attack_time_norm)*attack_level_norm;
   }
   else if(t < (attack_time_norm + decay_time_norm)){
-    r_filter.setCutoff(attack_level_norm - (((t - attack_time_norm)/decay_time_norm)*(attack_level_norm - sustain_level_norm)));
-    lp_filter.setCutoff(attack_level_norm - (((t - attack_time_norm)/decay_time_norm)*(attack_level_norm - sustain_level_norm)));
+    r_cutoff = attack_level_norm - (((t - attack_time_norm)/decay_time_norm)*(attack_level_norm - sustain_level_norm));
+    lp_cutoff = attack_level_norm - (((t - attack_time_norm)/decay_time_norm)*(attack_level_norm - sustain_level_norm));
   }
   else if(s == 0){
-    r_filter.setCutoff(sustain_level_norm);
-    lp_filter.setCutoff(sustain_level_norm);
+    r_cutoff = sustain_level_norm;
+    lp_cutoff = sustain_level_norm;
   }
   else if(s < release_time_norm){
-    r_filter.setCutoff(sustain_level_norm * (1 - ((float)s / release_time_norm)));
-    lp_filter.setCutoff(sustain_level_norm * (1 - ((float)s / release_time_norm)));
+    r_cutoff = sustain_level_norm * (1 - ((float)s / release_time_norm));
+    lp_cutoff = sustain_level_norm * (1 - ((float)s / release_time_norm));
   }
 
+  if(controller.get_button(0)){
+    r_filter.setCutoff(r_cutoff);
+  }
+  if(controller.get_button(1)){
+    lp_filter.setCutoff(lp_cutoff);
+  }
+  
   if(controller.get_button(0) && controller.get_button(1)){
     output[voice] = r_filter.tick(output[voice]) + lp_filter.tick(output[voice]);
   }

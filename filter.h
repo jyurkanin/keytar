@@ -2,6 +2,8 @@
 #pragma once
 #define OMEGA (2*M_PI/44100.0) //sample rate adjusted conversion from Hz to rad/s
 
+//https://www.music.mcgill.ca/~gary/307/week2/filters.html
+//
 
 class Filter{
 public:
