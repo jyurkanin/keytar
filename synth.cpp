@@ -84,14 +84,26 @@ void FmSimpleAlg::setVoice(int n){
 }
 
 float FmSimpleAlg::tick(float freq, int t, int s, int &state){
-  modulator.tick(freq, t);
+  float freq_mod = freq;
+  float freq_carrier = freq;
+  if(controllers[1].get_button(3)){
+    modulator.freq_envelope(t, s, freq_mod);
+  }
+  modulator.tick(freq_mod, t);
   modulator.envelope(t, s);
-  modulator.filter(t, s);
+  if(!controllers[1].get_button(3)){
+    modulator.filter(t, s);
+  }
   
   carrier.fm_input = modulator.getOutput();
-  carrier.tick(freq, t);
+  if(controllers[0].get_button(3)){
+    carrier.freq_envelope(t, s, freq_carrier);
+  }
+  carrier.tick(freq_carrier, t);
   state = carrier.envelope(t, s);
-  carrier.filter(t, s);
+  if(!controllers[0].get_button(3)){
+    carrier.filter(t, s);
+  }
   return carrier.getOutput();
 }
 void FmSimpleAlg::getControlMap(char mapping[18][50], int& len, int c_num){
@@ -99,7 +111,7 @@ void FmSimpleAlg::getControlMap(char mapping[18][50], int& len, int c_num){
     sprintf(mapping[0], "%s", "Carrier Operator");
     sprintf(mapping[1], "Octave = %d", controllers[0].get_slider(1)/8);
     sprintf(mapping[2], "Detune = %d", controllers[0].get_knob(1));
-    sprintf(mapping[3], "Waveform = %d", controllers[0].get_knob(2)/26);
+    sprintf(mapping[3], "Waveform = %d", controllers[0].get_knob(2)/22);
     sprintf(mapping[4], "FM Gain = %f", controllers[0].get_slider(0) * controllers[0].get_knob(0) * .0078125);
     sprintf(mapping[5], "Feedback = %f", controllers[0].get_knob(3)/64.0);
     if(controllers[0].get_button(2))
@@ -112,7 +124,7 @@ void FmSimpleAlg::getControlMap(char mapping[18][50], int& len, int c_num){
     sprintf(mapping[0], "%s", "Modulator Operator");
     sprintf(mapping[1], "Octave = %d", controllers[1].get_slider(1)/8);
     sprintf(mapping[2], "Detune = %d", controllers[1].get_knob(1));
-    sprintf(mapping[3], "Waveform = %d               ", controllers[1].get_knob(2)/26);
+    sprintf(mapping[3], "Waveform = %d               ", controllers[1].get_knob(2)/22);
     sprintf(mapping[4], "Feedback = %f", controllers[1].get_knob(3)/64.0);
     len = 5;
   }
@@ -156,19 +168,38 @@ void FmThreeAlg::setVoice(int n){
 }
 
 float FmThreeAlg::tick(float freq, int t, int s, int &state){
-  modulator2.tick(freq, t);
-  modulator2.envelope(t, s);
-  modulator2.filter(t, s);
+  float freq1 = freq;
+  float freq2 = freq;
+  float freq_c = freq;
 
+  if(controllers[2].get_button(3)){
+    modulator2.freq_envelope(t, s, freq2);
+  }
+  modulator2.tick(freq2, t);
+  modulator2.envelope(t, s);
+  if(!controllers[2].get_button(3)){
+    modulator2.filter(t, s);
+  }
+
+  if(controllers[1].get_button(3)){
+    modulator1.freq_envelope(t, s, freq1);
+  }
   modulator1.fm_input = modulator2.getOutput();
-  modulator1.tick(freq, t);
+  modulator1.tick(freq1, t);
   modulator1.envelope(t, s);
-  modulator1.filter(t, s);
-  
+  if(!controllers[1].get_button(3)){
+    modulator1.filter(t, s);
+  }
+
+  if(controllers[0].get_button(3)){
+    carrier.freq_envelope(t, s, freq_c);
+  }
   carrier.fm_input = modulator1.getOutput();
-  carrier.tick(freq, t);
+  carrier.tick(freq_c, t);
   state = carrier.envelope(t, s);
-  carrier.filter(t, s);
+  if(controllers[0].get_button(3)){
+    carrier.filter(t, s);
+  }
   
   return carrier.getOutput();
 }
@@ -177,7 +208,7 @@ void FmThreeAlg::getControlMap(char mapping[18][50], int& len, int c_num){
     sprintf(mapping[0], "%s", "Carrier Operator");
     sprintf(mapping[1], "Octave = %d", controllers[0].get_slider(1)/8);
     sprintf(mapping[2], "Detune = %d", controllers[0].get_knob(1));
-    sprintf(mapping[3], "Waveform = %d", controllers[0].get_knob(2)/26);
+    sprintf(mapping[3], "Waveform = %d", controllers[0].get_knob(2)/22);
     sprintf(mapping[4], "FM Gain = %f", controllers[0].get_slider(0) * controllers[0].get_knob(0) * .0078125);
     sprintf(mapping[5], "Feedback = %f", controllers[0].get_knob(3)/64.0);
     if(controllers[0].get_button(2))
@@ -190,7 +221,7 @@ void FmThreeAlg::getControlMap(char mapping[18][50], int& len, int c_num){
     sprintf(mapping[0], "%s", "Carrier Operator");
     sprintf(mapping[1], "Octave = %d", controllers[1].get_slider(1)/8);
     sprintf(mapping[2], "Detune = %d", controllers[1].get_knob(1));
-    sprintf(mapping[3], "Waveform = %d", controllers[1].get_knob(2)/26);
+    sprintf(mapping[3], "Waveform = %d", controllers[1].get_knob(2)/22);
     sprintf(mapping[4], "FM Gain = %f", controllers[1].get_slider(0) * controllers[1].get_knob(0) * .0078125);
     sprintf(mapping[5], "Feedback = %f", controllers[1].get_knob(3)/64.0);
     if(controllers[1].get_button(2))
@@ -203,7 +234,7 @@ void FmThreeAlg::getControlMap(char mapping[18][50], int& len, int c_num){
     sprintf(mapping[0], "%s", "Modulator2 Operator");
     sprintf(mapping[1], "Octave = %d", controllers[2].get_slider(1)/8);
     sprintf(mapping[2], "Detune = %d", controllers[2].get_knob(1));
-    sprintf(mapping[3], "Waveform = %d               ", controllers[2].get_knob(2)/26);
+    sprintf(mapping[3], "Waveform = %d               ", controllers[2].get_knob(2)/22);
     sprintf(mapping[4], "Feedback = %f", controllers[2].get_knob(3)/64.0);
     len = 5;
   }
@@ -245,16 +276,21 @@ void OscAlg::setVoice(int n){
 }
 
 float OscAlg::tick(float freq, int t, int s, int &state){
+  //  if(controllers[0].get_button(3)){
+  // vc.freq_envelope(t, s, freq);
+  //}
   vc.tick(freq, t);
   state = vc.envelope(t, s);
-  vc.filter(t, s);
+  //if(!controllers[0].get_button(3)){
+  //  vc.filter(t, s);
+  //}
   return vc.getOutput();
 }
 void OscAlg::getControlMap(char mapping[18][50], int& len, int c_num){
   if(c_num == 0){
     sprintf(mapping[0], "Octave = %d", (controllers[0].get_slider(1)/8));
     sprintf(mapping[1], "Detune = %f", controllers[0].get_knob(1)/6.35);
-    sprintf(mapping[2], "Waveform = %d", controllers[0].get_knob(2)/26);
+    sprintf(mapping[2], "Waveform = %d", controllers[0].get_knob(2)/22);
     sprintf(mapping[3], "Feedback = %f", controllers[0].get_knob(3)/128.0);
     len = 4;
   }

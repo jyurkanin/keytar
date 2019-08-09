@@ -604,12 +604,16 @@ void *midi_loop(void *ignoreme){
   MidiByte packet[4];
   std::queue<unsigned char> incoming;
   unsigned char temp;
+  unsigned char last_status_byte;
   while(is_window_open()){
     if(read(MidiFD, &temp, sizeof(temp)) <= 0){
-      usleep(1000);
+      usleep(10);
       continue;
     }
     else{
+      if(incoming.size() == 0 && !(temp & 0b10000000)){ //so if the first byte in the sequence is not a status byte, use the last status byte.
+	incoming.push(last_status_byte);
+      }
       incoming.push(temp);
     }
     
@@ -620,9 +624,11 @@ void *midi_loop(void *ignoreme){
     }
     else continue;
     
-    //    printf("keyboard %d %d %d\n", packet[0], packet[1], packet[2]);
+    printf("keyboard %d %d %d\n", packet[0], packet[1], packet[2]);
     
-    switch(packet[0]){
+    last_status_byte = packet[0];
+    
+    switch(packet[0] & 0b11110000){
     case(MIDI_NOTE_OFF):
       if(sustain < 64){	
 	midiNotesReleased[packet[1]] = 1;
@@ -646,7 +652,11 @@ void *midi_loop(void *ignoreme){
     case(PITCH_BEND):
       bend = packet[2];
       break;
+    default:
+      lseek(MidiFD, 0, SEEK_END);
+      break;
     }
+    
   }
   printf("Piano Thread is DEADBEEF\n");
   return 0;

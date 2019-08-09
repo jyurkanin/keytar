@@ -26,8 +26,10 @@ class Operator{
   void setVoice(int n){voice = n; r_filter.setVoice(n); lp_filter.setVoice(n);}
   float getOutput(){return output[voice];}
   void tick(float freq, int t);
+  int freq_envelope(int t, int s, float &freq);
   int envelope(int t, int s);
   int filter(int t, int s);
+  static int adsr(float attack_time_norm, float decay_time_norm, float release_time_norm, float attack_level_norm, float sustain_level_norm, int t, int s, float &adsr_out);
   
   Controller &controller;
 
