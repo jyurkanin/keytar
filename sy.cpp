@@ -17,7 +17,6 @@ int main(int argc, char *argv[]){
     printf("usage ./keyboard <midi keyboard> <midi controller>\n");
     exit(-1);
   }
-  //generate_sample();
   init_window();
   init_alsa();
   init_midi(argc, argv);

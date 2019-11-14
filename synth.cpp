@@ -84,12 +84,14 @@ void FmSimpleAlg::setVoice(int n){
 }
 
 float FmSimpleAlg::tick(float freq, int t, int s, int &state){
-  float freq_mod = freq;
-  float freq_carrier = freq;
+  float f_mod;
+  float c_mod;
   if(controllers[1].get_button(3)){
-    modulator.freq_envelope(t, s, freq_mod);
+    modulator.freq_envelope(t, s, freq, f_mod);
+    modulator.fm_input = f_mod;
   }
-  modulator.tick(freq_mod, t);
+  printf("%f\n", modulator.fm_input);
+  modulator.tick(freq, t);
   modulator.envelope(t, s);
   if(!controllers[1].get_button(3)){
     modulator.filter(t, s);
@@ -97,9 +99,10 @@ float FmSimpleAlg::tick(float freq, int t, int s, int &state){
   
   carrier.fm_input = modulator.getOutput();
   if(controllers[0].get_button(3)){
-    carrier.freq_envelope(t, s, freq_carrier);
+    carrier.freq_envelope(t, s, freq, c_mod);
+    carrier.fm_input += c_mod;
   }
-  carrier.tick(freq_carrier, t);
+  carrier.tick(freq, t);
   state = carrier.envelope(t, s);
   if(!controllers[0].get_button(3)){
     carrier.filter(t, s);
@@ -114,19 +117,61 @@ void FmSimpleAlg::getControlMap(char mapping[18][50], int& len, int c_num){
     sprintf(mapping[3], "Waveform = %d", controllers[0].get_knob(2)/22);
     sprintf(mapping[4], "FM Gain = %f", controllers[0].get_slider(0) * controllers[0].get_knob(0) * .0078125);
     sprintf(mapping[5], "Feedback = %f", controllers[0].get_knob(3)/64.0);
+    
+    if(controllers[0].get_button(3)){
+      sprintf(mapping[6], "Envelope Modulated Frequency");
+    }
+    else{
+      if(controllers[0].get_button(0)){
+	sprintf(mapping[6], "Envelope Modulated LowPass Filter");
+      }
+      else if(controllers[0].get_button(1)){
+	sprintf(mapping[6], "Envelope Modulated Resonant Filter");
+      }
+      else if(controllers[0].get_button(0) && controllers[1].get_button(1)){
+	sprintf(mapping[6], "Envelope Modulated Resonant Filter");
+      }
+      else{
+	sprintf(mapping[6], "Envelope Modulated Nothing Filter");
+      }
+    }
+    
     if(controllers[0].get_button(2))
-      sprintf(mapping[6], "%s", "Exponential FM");
+      sprintf(mapping[7], "%s", "Exponential FM");
     else
-      sprintf(mapping[6], "%s", "Linear FM");
-    len = 7;
+      sprintf(mapping[7], "%s", "Linear FM");
+    len = 8;
   }
   else if(c_num == 1){
     sprintf(mapping[0], "%s", "Modulator Operator");
     sprintf(mapping[1], "Octave = %d", controllers[1].get_slider(1)/8);
     sprintf(mapping[2], "Detune = %d", controllers[1].get_knob(1));
     sprintf(mapping[3], "Waveform = %d               ", controllers[1].get_knob(2)/22);
-    sprintf(mapping[4], "Feedback = %f", controllers[1].get_knob(3)/64.0);
-    len = 5;
+    sprintf(mapping[4], "FM Gain = %f", controllers[1].get_slider(0) * controllers[1].get_knob(0) * .0078125);
+    sprintf(mapping[5], "Feedback = %f", controllers[1].get_knob(3)/64.0);
+    if(controllers[1].get_button(3)){
+      sprintf(mapping[6], "Envelope Modulated Frequency");
+    }
+    else{
+      if(controllers[1].get_button(0)){
+	sprintf(mapping[6], "Envelope Modulated LowPass Filter");
+      }
+      else if(controllers[1].get_button(1)){
+	sprintf(mapping[6], "Envelope Modulated Resonant Filter");
+      }
+      else if(controllers[1].get_button(0) && controllers[1].get_button(1)){
+	sprintf(mapping[6], "Envelope Modulated Resonant Filter");
+      }
+      else{
+	sprintf(mapping[6], "Envelope Modulated Nothing Filter");
+      }
+    }
+    if(controllers[1].get_button(2))
+      sprintf(mapping[7], "%s", "Exponential FM");
+    else
+      sprintf(mapping[7], "%s", "Linear FM");
+    
+    len = 8;
   }
   else{
     len = 0;
@@ -168,13 +213,14 @@ void FmThreeAlg::setVoice(int n){
 }
 
 float FmThreeAlg::tick(float freq, int t, int s, int &state){
-  float freq1 = freq;
-  float freq2 = freq;
-  float freq_c = freq;
+  float freq1;
+  float freq2;
+  float freq_c;
 
   if(controllers[2].get_button(3)){
-    modulator2.freq_envelope(t, s, freq2);
+    modulator2.freq_envelope(t, s, freq, freq2);
   }
+  modulator2.fm_input = freq2;
   modulator2.tick(freq2, t);
   modulator2.envelope(t, s);
   if(!controllers[2].get_button(3)){
@@ -182,9 +228,9 @@ float FmThreeAlg::tick(float freq, int t, int s, int &state){
   }
 
   if(controllers[1].get_button(3)){
-    modulator1.freq_envelope(t, s, freq1);
+    modulator1.freq_envelope(t, s, freq, freq1);
   }
-  modulator1.fm_input = modulator2.getOutput();
+  modulator1.fm_input = modulator2.getOutput() + freq1;
   modulator1.tick(freq1, t);
   modulator1.envelope(t, s);
   if(!controllers[1].get_button(3)){
@@ -192,9 +238,9 @@ float FmThreeAlg::tick(float freq, int t, int s, int &state){
   }
 
   if(controllers[0].get_button(3)){
-    carrier.freq_envelope(t, s, freq_c);
+    carrier.freq_envelope(t, s, freq, freq_c);
   }
-  carrier.fm_input = modulator1.getOutput();
+  carrier.fm_input = modulator1.getOutput() + freq_c;
   carrier.tick(freq_c, t);
   state = carrier.envelope(t, s);
   if(controllers[0].get_button(3)){
@@ -211,10 +257,18 @@ void FmThreeAlg::getControlMap(char mapping[18][50], int& len, int c_num){
     sprintf(mapping[3], "Waveform = %d", controllers[0].get_knob(2)/22);
     sprintf(mapping[4], "FM Gain = %f", controllers[0].get_slider(0) * controllers[0].get_knob(0) * .0078125);
     sprintf(mapping[5], "Feedback = %f", controllers[0].get_knob(3)/64.0);
+
+    if(controllers[0].get_button(3)){
+      sprintf(mapping[6], "Envelope Modulated Frequency");
+    }
+    else{
+      sprintf(mapping[6], "Envelope Modulated Filter");
+    }
+
     if(controllers[0].get_button(2))
-      sprintf(mapping[6], "%s", "Exponential FM");
+      sprintf(mapping[7], "%s", "Exponential FM");
     else
-      sprintf(mapping[6], "%s", "Linear FM");
+      sprintf(mapping[7], "%s", "Linear FM");
     len = 7;
   }
   else if(c_num == 1){
@@ -224,11 +278,18 @@ void FmThreeAlg::getControlMap(char mapping[18][50], int& len, int c_num){
     sprintf(mapping[3], "Waveform = %d", controllers[1].get_knob(2)/22);
     sprintf(mapping[4], "FM Gain = %f", controllers[1].get_slider(0) * controllers[1].get_knob(0) * .0078125);
     sprintf(mapping[5], "Feedback = %f", controllers[1].get_knob(3)/64.0);
+    if(controllers[1].get_button(3)){
+      sprintf(mapping[6], "Envelope Modulated Frequency");
+    }
+    else{
+      sprintf(mapping[6], "Envelope Modulated Filter");
+    }
+
     if(controllers[1].get_button(2))
-      sprintf(mapping[6], "%s", "Exponential FM");
+      sprintf(mapping[7], "%s", "Exponential FM");
     else
-      sprintf(mapping[6], "%s", "Linear FM");
-    len = 7;
+      sprintf(mapping[7], "%s", "Linear FM");
+    len = 8;
   }
   else if(c_num == 2){
     sprintf(mapping[0], "%s", "Modulator2 Operator");
@@ -276,23 +337,43 @@ void OscAlg::setVoice(int n){
 }
 
 float OscAlg::tick(float freq, int t, int s, int &state){
-  //  if(controllers[0].get_button(3)){
-  // vc.freq_envelope(t, s, freq);
-  //}
+  float f_mod;
+  if(controllers[0].get_button(3)){
+    vc.freq_envelope(t, s, freq, f_mod);
+  }
+  vc.fm_input = f_mod;
   vc.tick(freq, t);
   state = vc.envelope(t, s);
-  //if(!controllers[0].get_button(3)){
-  //  vc.filter(t, s);
-  //}
+  if(!controllers[0].get_button(3)){
+    vc.filter(t, s);
+  }
   return vc.getOutput();
 }
 void OscAlg::getControlMap(char mapping[18][50], int& len, int c_num){
   if(c_num == 0){
     sprintf(mapping[0], "Octave = %d", (controllers[0].get_slider(1)/8));
-    sprintf(mapping[1], "Detune = %f", controllers[0].get_knob(1)/6.35);
+    sprintf(mapping[1], "Detune = %f", controllers[0].get_knob(1)/128.0);
     sprintf(mapping[2], "Waveform = %d", controllers[0].get_knob(2)/22);
     sprintf(mapping[3], "Feedback = %f", controllers[0].get_knob(3)/128.0);
-    len = 4;
+    sprintf(mapping[4], "FM Gain = %f", controllers[0].get_slider(0) * controllers[0].get_knob(0) * .0078125);
+    if(controllers[0].get_button(3)){
+      sprintf(mapping[5], "Envelope Modulated Frequency");
+    }
+    else{
+      if(controllers[0].get_button(0)){
+	sprintf(mapping[6], "Envelope Modulated LowPass Filter");
+      }
+      else if(controllers[0].get_button(1)){
+	sprintf(mapping[6], "Envelope Modulated Resonant Filter");
+      }
+      else if(controllers[0].get_button(0) && controllers[1].get_button(1)){
+	sprintf(mapping[6], "Envelope Modulated Resonant Filter");
+      }
+      else{
+	sprintf(mapping[6], "Envelope Modulated Nothing Filter");
+      }
+    }
+    len = 6;
   }
   else{
     len = 0;

@@ -87,27 +87,21 @@ void Operator::tick(float freq, int t){
     fm_mod += feedback*output[voice];
     switch(controller.get_knob(2)/22){
     case 0:
-      printf("sin\n");
       output[voice] = sin(OMEGA*t*freq + fm_mod);
       break;
     case 1:
-      printf("abs sin\n");
       output[voice] = abs(2*sin(OMEGA*t*freq*.5 + fm_mod)) - 1;
       break;
     case 2:
-      printf("tri\n");
       output[voice] = tri(OMEGA*t*freq + fm_mod);
       break;
     case 3:
-      printf("saw\n");
       output[voice] = saw(OMEGA*t*freq + fm_mod);
       break;
     case 4:
-      printf("sqr\n");
       output[voice] = square(OMEGA*t*freq + fm_mod);
       break;
     case 5:
-      printf("noise\n");
       output[voice] = (2.0*((float)rand()/(float)RAND_MAX)) - 1;
       break;
     }
@@ -136,18 +130,22 @@ int Operator::envelope(int t, int s){
 
 
 
-int Operator::freq_envelope(int t, int s, float &freq){
+int Operator::freq_envelope(int t, int s, float freq, float &fm_mod){
+  static float integral[128];
   float attack_time_norm = controller.get_knob(4) * .0078125 * 44100.0; //the actual attack time = (attack_time / 128) * 441000
   float decay_time_norm = controller.get_knob(5) * .0078125 * 44100.0;
   float release_time_norm = controller.get_knob(6) * .0078125 * 44100.0;
   
-  float attack_level_norm = controller.get_knob(7)*.0078125* 8;
-  float sustain_level_norm = controller.get_knob(8)*.0078125* 8;
+  float attack_level_norm = controller.get_knob(7)*.0078125;
+  float sustain_level_norm = controller.get_knob(8)*.0078125;
 
   float adsr_out;
   int state = adsr(attack_time_norm, decay_time_norm, release_time_norm, attack_level_norm, sustain_level_norm, t, s, adsr_out);
-                                 
-  freq *= adsr_out;
+
+  if(t == 0) integral[voice] = 0;
+  integral[voice] += (.01*log(freq)*adsr_out);
+  
+  fm_mod = integral[voice];
   return state;
 }
 

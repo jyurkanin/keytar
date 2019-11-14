@@ -31,7 +31,7 @@ volatile int should_clear_buffer = 0;
 
 
 void init_window(){
-    dpy = XOpenDisplay(0);
+    dpy = XOpenDisplay(":0.0");
     w = XCreateSimpleWindow(dpy, DefaultRootWindow(dpy), 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, 0, 0, 0);
 
     Atom wm_state   = XInternAtom (dpy, "_NET_WM_STATE", true );
@@ -277,11 +277,12 @@ void *sy_window_thread(void * arg){
 int _DRAW_SYNTH_LEN = 5;
 int _DRAW_SYNTH_MSG_LEN = 20;
 const char * _DRAW_SYNTH_MSG[] =
-  {"Oscillator = 0             ",
-   "Sword = 1           ",
-   "FM_Simple = 2       ",
-   "FM_Three = 3       ",
-   "WaveTable = 4       "};
+  {"Oscillator = 0    ",
+   "Sword      = 1    ",
+   "FM_Simple  = 2    ",
+   "FM_Three   = 3    ",
+   "WaveTable  = 4    ",
+   "Scanner    = 5    "};
 void draw_synth_selection_window(){
     clear_left();
     XSetForeground(dpy, gc, 0xFF);

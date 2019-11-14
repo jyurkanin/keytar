@@ -120,7 +120,6 @@ void load_program(char* filename){
   int num_controllers;
   for(int i = 0; i < num; i++){
     in >> num_controllers;
-    printf("num_controllers %d\n", num_controllers);
     for(int k = 0; k < num_controllers; k++){
       for(int j = 0; j < 9; j++){
 	in >> synth_algorithms[i]->controllers[k].slider[j];
@@ -357,7 +356,10 @@ void *audio_thread(void *arg){
     LPFilter lpfilter(22000);
     float fc;
     int num_voices;
-    
+
+    int derp = 0;
+
+    printf("we here bish\n");
     while(is_window_open()){
         snd_pcm_wait(playback_handle, 100);
         frames_to_deliver = snd_pcm_avail_update(playback_handle);
@@ -366,6 +368,7 @@ void *audio_thread(void *arg){
             printf("Epipe\n");
             continue;
         }
+
         frames_to_deliver = frames_to_deliver > 441 ? 441 : frames_to_deliver;
         memset(sum_frames, 0, CHANNELS*441*sizeof(float));
 
@@ -384,7 +387,6 @@ void *audio_thread(void *arg){
 	    }
 	    else if(midiNotesReleased[k]){
 	      midiNotesReleased[k] = 0; //lets just pray we dont have race conditions.
-	      
 	      sample.index_s[k] = 1; //this will cause the state to transition to Release
 	    }
 	    
@@ -438,12 +440,12 @@ void *audio_thread(void *arg){
 	  
 	  if(num_on){
 	    set_wave_buffer(lowest_note, lowest_index, frames_to_deliver, sum_frames);
-	    
+	    printf("AHHH\n");
 	    while((err = snd_pcm_writei (playback_handle, sum_frames, frames_to_deliver)) != frames_to_deliver && is_window_open()) {
 	      snd_pcm_prepare (playback_handle);
 	      pcm_state = snd_pcm_state(playback_handle);
 	      fprintf (stderr, "write to audio interface failed (%s)\n", snd_strerror (err));
-	      }
+	    }
 	  }
 	  else{
 	    clear_wave_buffer();
@@ -522,7 +524,7 @@ int init_record(){
     snd_pcm_hw_params_set_format (capture_handle, hw_params, SND_PCM_FORMAT_S16_LE);
     snd_pcm_hw_params_set_rate_near (capture_handle, hw_params, &sample_rate, NULL);
     snd_pcm_hw_params_set_buffer_size_near(capture_handle, hw_params, &buffer_size);
-    snd_pcm_hw_params_set_channels (capture_handle, hw_params, CHANNELS); //this thing
+    snd_pcm_hw_params_set_channels (capture_handle, hw_params, CHANNELS);
     snd_pcm_hw_params (capture_handle, hw_params);
     snd_pcm_hw_params_free (hw_params);
     
@@ -589,6 +591,42 @@ int init_alsa(){
     snd_pcm_prepare(playback_handle);
 
     memset(&sample, 0, sizeof(sample));
+
+
+    /*TEST
+    int frames_to_deliver = 441;
+    float sum_frames[441];
+
+    while(1){
+      if ((err = snd_pcm_wait (playback_handle, 100)) < 0) {
+	fprintf (stderr, "poll failed (%s)\n", strerror (errno));
+	break;
+      }	           
+      
+      if ((frames_to_deliver = snd_pcm_avail_update (playback_handle)) < 0) {
+	if (frames_to_deliver == -EPIPE) {
+	  fprintf (stderr, "an xrun occured\n");
+	  break;
+	} else {
+	  fprintf (stderr, "unknown ALSA avail update return value (%d)\n", 
+		   frames_to_deliver);
+	  break;
+	}
+      }
+      
+      frames_to_deliver = frames_to_deliver > 441 ? 441 : frames_to_deliver;
+      
+      
+      
+      for(int i = 0; i < frames_to_deliver; i++){
+	sum_frames[i] = sin(220*i);
+      }
+      if ((err = snd_pcm_writei (playback_handle, sum_frames, frames_to_deliver)) < 0) {
+	fprintf (stderr, "write failed (%s)\n", snd_strerror (err));
+      }
+    }
+    snd_pcm_drain(playback_handle);
+    //END TEST*/
     
     return EXIT_SUCCESS;
 }

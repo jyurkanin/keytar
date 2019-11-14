@@ -11,3 +11,6 @@ LIBS=-lm -lpthread -lasound -lX11
 
 all: $(OBJ)
 	$(CXX) -o sy $^ $(CFLAGS) $(LIBS)
+test:
+	$(CXX) -o test test.c $(CFLAGS) $(LIBS)
+
