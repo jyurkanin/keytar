@@ -162,112 +162,119 @@ void *sy_window_thread(void * arg){
     SynthAlg* synth;
     int alg_num;
     int controller_num = 0;
+
+    Scanner *scanner;
     
     while(1){
 
-      if(should_clear_buffer){
-	wave_buffer.clear();
-	should_clear_buffer = 0;
-      }
-      
-      switch(cmd_state){
-      case MAIN_STATE:
-	draw_main_window();
-	break;
-      case SYNTH_STATE:
-	draw_synth_window(synth, controller_num);
-	break;
-      }
-      
-      if(XPending(dpy) > 0){
-	XNextEvent(dpy, &e);
-	if(e.type == KeyPress){
-	  XLookupString(&e.xkey, buf, 1, NULL, NULL);
-	  
-	  switch(cmd_state){
-	  case MAIN_STATE:
-	    if(isdigit(buf[0])){ //switch oscillator, 0-9
-	      synth_num = 0;
-	      sscanf(buf, "%d", &synth_num);
-	      synth = getSynth(synth_num);
-	      if(synth){
-		controller_num = 0;
-		synth->controllers[controller_num].activate();
-		draw_synth_params(synth, controller_num);
-		cmd_state = SYNTH_STATE;
-	      }
-	    }
-	    
-	    switch(buf[0]){
-	    case 'd': //delete a synthalg
-	      alg_num = get_num();
-	      delSynth(alg_num);
-	      break;
-	    case 'a': //add a new synthalg
-	      cmd_state = SYNTH_STATE;
-	      clear_left();
-	      draw_synth_selection_window();
-	      XFlush(dpy);
-	      
-	      alg_num = get_num(); //get number from user
-	      addSynth(alg_num);
-	      synth = getSynth(getNumAlgorithms()-1);
-	      synth->controllers[0].activate();
-	      controller_num = 0;
-	      draw_synth_params(synth, controller_num);
-	      break;
-	    case 's': //save
-	      clear_left();
-	      XSetForeground(dpy, gc, 0xFF);
-	      XDrawString(dpy, w, gc, 4, MAX_PLOT_WIDTH, "Save as: ", 9);
-	      XFlush(dpy);
-	      
-	      memset(filename, 0, 100);
-	      get_string(filename);
-	      save_program(filename);
-	      draw_main_params();
-	      break;
-	    case 'l': //load
-	      clear_left();
-	      XSetForeground(dpy, gc, 0xFF);
-	      XDrawString(dpy, w, gc, 4, MAX_PLOT_WIDTH, "Load file: ", 9);
-	      XFlush(dpy);
-	      
-	      memset(filename, 0, 100);
-	      get_string(filename);
-	      load_program(filename);
-	      draw_main_params();
-	      break;
-	    case 'q': //quit
-	      printf("Window Thread is DEADBEEF\n");
-	      del_window();
-	      return 0;
-	    }
-	    break;
-	    
-	  case SYNTH_STATE:
-	    if(isdigit(buf[0])){ //switch controller, 0-9
-	      sscanf(buf, "%d", &controller_num);
-	      if(controller_num < synth->getNumControllers()){
-		synth->controllers[controller_num].activate();
-	      }
-	    }
-	    
-	    switch(buf[0]){
-	    case 'x':
-	      cmd_state = MAIN_STATE;
-	      activate_main_controller();
-	      draw_main_params();
-	      break;
-	    case 'p':
-	      break;
-	    }
-	    break;
-	  }
-	}        
-      }
-      XFlush(dpy);
-      usleep(1000);
+        if(should_clear_buffer){
+            wave_buffer.clear();
+            should_clear_buffer = 0;
+        }
+        
+        switch(cmd_state){
+        case MAIN_STATE:
+            draw_main_window();
+            break;
+        case SYNTH_STATE:
+            draw_synth_window(synth, controller_num);
+            break;
+        case SCANNER_STATE:
+            
+            break;
+        }
+        
+        if(XPending(dpy) > 0){
+            XNextEvent(dpy, &e);
+            if(e.type == KeyPress){
+                XLookupString(&e.xkey, buf, 1, NULL, NULL);
+              
+                switch(cmd_state){
+                case MAIN_STATE:
+                    if(isdigit(buf[0])){ //switch oscillator, 0-9
+                        synth_num = 0;
+                        sscanf(buf, "%d", &synth_num);
+                        synth = getSynth(synth_num);
+                        if(synth){
+                            controller_num = 0;
+                            synth->controllers[controller_num].activate();
+                            draw_synth_params(synth, controller_num);
+                            cmd_state = SYNTH_STATE;
+                        }
+                    }
+                    
+                    switch(buf[0]){
+                    case 'd': //delete a synthalg
+                        alg_num = get_num();
+                        delSynth(alg_num);
+                        break;
+                    case 'a': //add a new synthalg
+                        cmd_state = SYNTH_STATE;
+                        clear_left();
+                        draw_synth_selection_window();
+                        XFlush(dpy);
+                        
+                        alg_num = get_num(); //get number from user
+                        addSynth(alg_num);
+                        synth = getSynth(getNumAlgorithms()-1);
+                        synth->controllers[0].activate();
+                        controller_num = 0;
+                        draw_synth_params(synth, controller_num);
+                        break;
+                    case 's': //save
+                        clear_left();
+                        XSetForeground(dpy, gc, 0xFF);
+                        XDrawString(dpy, w, gc, 4, MAX_PLOT_WIDTH, "Save as: ", 9);
+                        XFlush(dpy);
+                        
+                        memset(filename, 0, 100);
+                        get_string(filename);
+                        save_program(filename);
+                        draw_main_params();
+                        break;
+                    case 'l': //load
+                        clear_left();
+                        XSetForeground(dpy, gc, 0xFF);
+                        XDrawString(dpy, w, gc, 4, MAX_PLOT_WIDTH, "Load file: ", 9);
+                        XFlush(dpy);
+                        
+                        memset(filename, 0, 100);
+                        get_string(filename);
+                        load_program(filename);
+                        draw_main_params();
+                        break;
+                    case 'm': //Scanned Synthesis. Special Case
+                        cmd_state = SCANNER_STATE;
+                        break;
+                    case 'q': //quit
+                        printf("Window Thread is DEADBEEF\n");
+                        del_window();
+                        return 0;
+                    }
+                    break;
+                case SYNTH_STATE:
+                    if(isdigit(buf[0])){ //switch controller, 0-9
+                        sscanf(buf, "%d", &controller_num);
+                        if(controller_num < synth->getNumControllers()){
+                            synth->controllers[controller_num].activate();
+                        }
+                    }
+                    
+                    switch(buf[0]){
+                    case 'x':
+                        cmd_state = MAIN_STATE;
+                        activate_main_controller();
+                        draw_main_params();
+                        break;
+                    case 'p':
+                        break;
+                    }
+                    break;
+                }
+            }        
+        }
+        XFlush(dpy);
+        usleep(1000);
     }
     
 }
