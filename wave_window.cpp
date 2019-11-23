@@ -155,35 +155,34 @@ void *sy_window_thread(void * arg){
     char filename[100];
     char cmd_state = MAIN_STATE;
     
-    float *temp_wave;
-    int length;
     
     int synth_num;
     SynthAlg* synth;
     int alg_num;
     int controller_num = 0;
 
-    Scanner *scanner;
+    Scanner scanner(20);
     
     while(1){
-
+        usleep(1000);
         if(should_clear_buffer){
             wave_buffer.clear();
             should_clear_buffer = 0;
         }
-        
+
         switch(cmd_state){
         case MAIN_STATE:
-            draw_main_window();
-            break;
+	  draw_main_window();
+	  break;
         case SYNTH_STATE:
-            draw_synth_window(synth, controller_num);
-            break;
+	  draw_synth_window(synth, controller_num);
+	  break;
         case SCANNER_STATE:
-            
-            break;
+	  scanner.draw_scanner(dpy, w, gc);
+	  break;
         }
-        
+	
+	
         if(XPending(dpy) > 0){
             XNextEvent(dpy, &e);
             if(e.type == KeyPress){
@@ -202,7 +201,7 @@ void *sy_window_thread(void * arg){
                             cmd_state = SYNTH_STATE;
                         }
                     }
-                    
+		    
                     switch(buf[0]){
                     case 'd': //delete a synthalg
                         alg_num = get_num();
@@ -245,6 +244,8 @@ void *sy_window_thread(void * arg){
                         break;
                     case 'm': //Scanned Synthesis. Special Case
                         cmd_state = SCANNER_STATE;
+			set_state(cmd_state);
+			set_scanner(&scanner);
                         break;
                     case 'q': //quit
                         printf("Window Thread is DEADBEEF\n");
@@ -253,23 +254,33 @@ void *sy_window_thread(void * arg){
                     }
                     break;
                 case SYNTH_STATE:
-                    if(isdigit(buf[0])){ //switch controller, 0-9
-                        sscanf(buf, "%d", &controller_num);
-                        if(controller_num < synth->getNumControllers()){
-                            synth->controllers[controller_num].activate();
-                        }
-                    }
-                    
-                    switch(buf[0]){
-                    case 'x':
-                        cmd_state = MAIN_STATE;
-                        activate_main_controller();
-                        draw_main_params();
-                        break;
-                    case 'p':
-                        break;
-                    }
-                    break;
+		  if(isdigit(buf[0])){ //switch controller, 0-9
+		    sscanf(buf, "%d", &controller_num);
+		    if(controller_num < synth->getNumControllers()){
+		      synth->controllers[controller_num].activate();
+		    }
+		  }
+                  
+		  switch(buf[0]){
+		  case 'x':
+		    cmd_state = MAIN_STATE;
+		    set_state(cmd_state);
+		    activate_main_controller();
+		    draw_main_params();
+		    break;
+		  case 'p':
+		    break;
+		  }
+		  break;
+		case SCANNER_STATE:
+		  switch(buf[0]){
+		  case 'x':
+		    cmd_state = MAIN_STATE;
+		    //		    set_state(cmd_state);
+		    activate_main_controller();
+		    draw_main_params();
+		  }
+		  break;
                 }
             }        
         }

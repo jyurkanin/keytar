@@ -20,7 +20,7 @@
 #include "wave_window.h"
 #include "synth.h"
 #include "controller.h"
-
+#include "scanner.h"
 
 #define MIDI_NOTE_ON 0x90
 #define MIDI_NOTE_OFF 0x80
@@ -43,10 +43,14 @@ typedef struct{
     int volume[128];
 } Sample;
 
+void set_state(char state);
+void set_scanner(Scanner *s);
+
 float compute_algorithm(int n, int t, int s, int volume, int alg_num, int& state);
 float compute_algorithm(float freq, int t, int s, int volume, int alg_num, int& state);
 float synthesize(int n, int t, int s, int volume, int& state);
 float synthesize(float freq, int t, int s, int volume, int& state);
+float synthesize_portamento(int curr, int last, int t, int s, int volume, int& state);
 
 void activate_main_controller();
 void addSynth(int alg);

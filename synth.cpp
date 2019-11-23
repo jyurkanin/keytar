@@ -414,7 +414,7 @@ Envelope OscAlg::getEnvelope(int i){
   float osc;
   float output = 0;
   float temp;
-  float temp2 = (t/44100.0)*sweep_freq*16; //*32.0 //this is right trust me on this
+  float temp2 = (t/44100.0)*sweep_freq*16; //32.0 //this is right trust me on this
   int st;
   SynthAlg* temp_synth;
   int num_controllers = getNumAlgorithms() - 1;
@@ -475,14 +475,13 @@ float WaveTableAlg::tick(float freq, int t, int s, int& state){
   int num_algs = getNumAlgorithms() - 1;
   float curr_index = fmod(step*t, num_algs);
   
-  int algs[8];
-  int count = 0;
+  //  int count = 0;
   SynthAlg* temp_synth;
   for(int i = 0; i < 9; i++){
     temp_synth = getSynth(i);
     if(temp_synth != NULL){
       if(temp_synth->s_func != SynthAlg::WAVE_TABLE_ALG){
-	algs[count] = i;
+	//	algs[count] = i;
       }
     }
   }

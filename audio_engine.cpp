@@ -29,6 +29,9 @@ Controller main_controller;
 Sample sample;
 Filter *alg_filters[9];
 
+char cmd_state = MAIN_STATE;
+Scanner *scanner;
+
 #define ACOUSTIC_MODE 1
 #define MIDI_MODE 0
 int input_mode_;
@@ -39,6 +42,14 @@ void breakOnMe(){
   //break me on, Break on meeeeeee
 }
 
+void set_state(char state){
+  cmd_state = state;
+}
+
+void set_scanner(Scanner *s){
+  scanner = s;
+}
+
 void save_program(char* filename){
   char file_path[110];
   sprintf(file_path, "programs/%s", filename);
@@ -47,7 +58,7 @@ void save_program(char* filename){
   
   out << synth_algorithms.size() << "\n";
   
-  for(int i = 0; i < synth_algorithms.size(); i++){
+  for(unsigned i = 0; i < synth_algorithms.size(); i++){
     out << synth_algorithms[i]->s_func << "\n";
   }
 
@@ -67,7 +78,7 @@ void save_program(char* filename){
 
   int num_controllers;
   
-  for(int i = 0; i < synth_algorithms.size(); i++){
+  for(unsigned i = 0; i < synth_algorithms.size(); i++){
     num_controllers = synth_algorithms[i]->getNumControllers();
     out << num_controllers << "\n";
     
@@ -169,10 +180,23 @@ float synthesize(int n, int t, int s, int volume, int& state){
   float freq = freqs[(n-21) % 12] * (1 << (1+(int)(n-21)/12));
   return synthesize(freq, t, s, volume, state);
 }
+
+float synthesize_portamento(int curr, int last, int t, int s, int volume, int& state){
+  static float p_freq = 0; //portamento freq
+  float curr_freq = freqs[(curr-21) % 12] * (1 << (1+(int)(curr-21)/12));
+  
+  if(last == -1){ //no note was being held down. So immedietely play curr_freq.
+    p_freq = curr_freq;
+  }
+  else{
+    p_freq += .001*(curr_freq - p_freq);
+  }
+  
+  return scanner->tick(p_freq)*volume;  
+}
+
 float synthesize(float freq, int t, int s, int volume, int& state){
-  static unsigned char old_knobs[9];
   float sample = 0;
-  float temp;
   
   /*  for(int i = 0; i < 9; i++){
     temp = main_controller.get_knob(i);
@@ -181,12 +205,11 @@ float synthesize(float freq, int t, int s, int volume, int& state){
       alg_filters[i]->setCutoff(temp*.0078125*20000);
     }
     }*/
-  
+
   for(unsigned i = 0; i < synth_algorithms.size(); i++){
     //alg_filters[i]->tick
     sample += main_controller.get_slider(i) * compute_algorithm(freq, t, s, volume, i, state) / 128.0f;
   }
-  
   return sample;
 }
 
@@ -202,7 +225,7 @@ float compute_algorithm(float freq, int t, int s, int volume, int alg_num, int& 
 }
 
 void setVoice(int n){
-  for(int i = 0; i < synth_algorithms.size(); i++){
+  for(unsigned i = 0; i < synth_algorithms.size(); i++){
     synth_algorithms[i]->setVoice(n);
   }
 }
@@ -241,8 +264,6 @@ void *capture_thread(void *arg){
   int buff_len = 1764;
   float f_series[buff_len];
   float temp_array[buff_len];
-  snd_pcm_state_t pcm_state;
-  int toggle = 0;
   int err;
   float freq_div = 44100.0/buff_len;
   
@@ -259,7 +280,6 @@ void *capture_thread(void *arg){
   while(is_window_open()){
     while((err = snd_pcm_readi (capture_handle, capture_frames, frames_to_deliver)) != frames_to_deliver && is_window_open()) {
       snd_pcm_prepare (capture_handle);
-      pcm_state = snd_pcm_state(capture_handle);
       fprintf (stderr, "audio interface capture failed (%s)\n", snd_strerror (err));
     }
     
@@ -302,14 +322,13 @@ void *capture_thread(void *arg){
       capture_freq = (.3*temp_freq) + (.7*capture_freq);
     }
   }
+  return NULL;
 }
 
 void *audio_thread_s(void *arg){
     float sum_frames[441*CHANNELS];
     int err;
     int frames_to_deliver;
-    
-    snd_pcm_state_t pcm_state;
     
     while(is_window_open()){
       snd_pcm_wait(playback_handle, 100);
@@ -334,7 +353,6 @@ void *audio_thread_s(void *arg){
       
       while((err = snd_pcm_writei (playback_handle, sum_frames, frames_to_deliver)) != frames_to_deliver && is_window_open()) {
 	snd_pcm_prepare (playback_handle);
-	pcm_state = snd_pcm_state(playback_handle);
 	fprintf (stderr, "write to audio interface failed (%s)\n", snd_strerror (err));
       }      
     }
@@ -348,17 +366,16 @@ void *audio_thread(void *arg){
     int num_on = 0;
     int frames_to_deliver;
     
-    snd_pcm_state_t pcm_state;
     int lowest_note;
     int lowest_index;
 
+    int last_note = -1; //for modes that are monophonic and use portamento or whatever its called
+    int curr_note = -1;
+    int is_monophonic = 0; //scanned synthesis only at the moment
+    
     RFilter rfilter(22000, .5);
     LPFilter lpfilter(22000);
-    float fc;
-    int num_voices;
-
-    int derp = 0;
-
+    
     printf("we here bish\n");
     while(is_window_open()){
         snd_pcm_wait(playback_handle, 100);
@@ -372,87 +389,117 @@ void *audio_thread(void *arg){
         frames_to_deliver = frames_to_deliver > 441 ? 441 : frames_to_deliver;
         memset(sum_frames, 0, CHANNELS*441*sizeof(float));
 
-	num_voices = 0;
+	is_monophonic = cmd_state == SCANNER_STATE;
 	lowest_note = 0;
-	if(synth_algorithms.size() > 0){
-	  for(int k = 21; k <= 108; k++){
-	    //this is going to assume that the midi thread handles the sustaining. ANd will only issue a note off if the sustain is not active
-	    if(midiNotesPressed[k]){
+	//	if(synth_algorithms.size() > 0){ //this causes the buffer not to fill leading to massive cpu usage. Also it needs to be able to go through the music loop even if no algorithms are present due to scanned and wavetable synth mode
+	for(int k = 21; k <= 108; k++){
+	  //this is going to assume that the midi thread handles the sustaining. ANd will only issue a note off if the sustain is not active
+	  if(midiNotesPressed[k]){
+	    if(is_monophonic){
+	      sample.volume[k] = midiNotesPressed[k];
+	      midiNotesPressed[k] = 0;
+	      num_on = 1;
+	      scanner->strike();
+	      
+	      sample.index[k] = 1;
+	      sample.index_s[k] = 0;
+
+	      if(curr_note != -1 && k != curr_note){ //so that when you press the same note twice it doesnt shut it off
+		sample.index[curr_note] = 0;
+	      }
+	      last_note = curr_note;
+	      curr_note = k;
+
+	    }
+	    else{
 	      sample.volume[k] = midiNotesPressed[k];
 	      midiNotesPressed[k] = 0;
 	      num_on++;
 	      
-	      sample.index[k] = 1; //will cause sate to transition to attack
+	      sample.index[k] = 1; //will cause state to transition to attack
 	      sample.index_s[k] = 0;
 	    }
-	    else if(midiNotesReleased[k]){
-	      midiNotesReleased[k] = 0; //lets just pray we dont have race conditions.
-	      sample.index_s[k] = 1; //this will cause the state to transition to Release
+	  }
+	  else if(midiNotesReleased[k]){
+	    midiNotesReleased[k] = 0; //lets just pray we dont have race conditions.
+	    sample.index_s[k] = 1; //this will cause the state to transition to Release
+	  }
+	  
+	  
+	  if(sample.index[k]){
+	    setVoice(k);
+
+	    if(is_monophonic){
+	      for(int j = 0; j < frames_to_deliver; j++){
+		sum_frames[j] = synthesize_portamento(curr_note, last_note, sample.index[k], sample.index_s[k], sample.volume[k], sample.state[k]);
+		sample.index[k]++;
+		if(sample.state[k] == Operator::RELEASE) sample.index_s[k]++;
+	      }
+	      printf("Note %d\n", k);
 	    }
-	    
-	    
-	    if(sample.index[k]){
-	      setVoice(k);
+	    else{
 	      for(int j = 0; j < frames_to_deliver; j++){
 		sum_frames[j] += synthesize(k, sample.index[k], sample.index_s[k], sample.volume[k], sample.state[k]);
 		sample.index[k]++;
 		if(sample.state[k] == Operator::RELEASE) sample.index_s[k]++;
 	      }
-	      
-	      if(sample.state[k] == Operator::IDLE){
-		sample.index[k] = 0;
-		sample.index_s[k] = 0;
-		num_on--;
-	      }
-	      
-	      if(!lowest_note){
-		lowest_note = k;
-		lowest_index = sample.index[k];
-	      }
 	    }
-	  }
-	  
-	  
-	  if(main_controller.get_button(1)){
-	    rfilter.setCutoff(22000*.0078125*(1+main_controller.get_knob(0)));
-	    rfilter.setQFactor(main_controller.get_knob(2)/128.0);
-	  }
-	  if(main_controller.get_button(0)){
-	    lpfilter.setCutoff(22000*.0078125*(1+main_controller.get_knob(0)));
-	    lpfilter.setQFactor((1 + main_controller.get_knob(1))/12.8);
-	  }
 	    
-	  if(main_controller.get_button(0) && main_controller.get_button(1)){
-	    for(int j = 0; j < frames_to_deliver; j++){
-	      sum_frames[j] = lpfilter.tick(sum_frames[j]) + rfilter.tick(sum_frames[j]);
+	    
+	    if(sample.state[k] == Operator::IDLE){
+	      curr_note = -1;
+	      last_note = -1; //useful for monophonic mode
+	      sample.index[k] = 0;
+	      sample.index_s[k] = 0;
+	      num_on--;
 	    }
-	  }
-	  else if(main_controller.get_button(0)){
-	    for(int j = 0; j < frames_to_deliver; j++){
-	      sum_frames[j] = lpfilter.tick(sum_frames[j]);
+	    
+	    if(!lowest_note){
+	      lowest_note = k;
+	      lowest_index = sample.index[k];
 	    }
-	  }
-	  else if(main_controller.get_button(1)){
-	    for(int j = 0; j < frames_to_deliver; j++){
-	      sum_frames[j] = rfilter.tick(sum_frames[j]);
-	    }
-	  }
-	  
-	  if(num_on){
-	    set_wave_buffer(lowest_note, lowest_index, frames_to_deliver, sum_frames);
-	    printf("AHHH\n");
-	    while((err = snd_pcm_writei (playback_handle, sum_frames, frames_to_deliver)) != frames_to_deliver && is_window_open()) {
-	      snd_pcm_prepare (playback_handle);
-	      pcm_state = snd_pcm_state(playback_handle);
-	      fprintf (stderr, "write to audio interface failed (%s)\n", snd_strerror (err));
-	    }
-	  }
-	  else{
-	    clear_wave_buffer();
-	    usleep(10);
 	  }
 	}
+	
+	
+	if(main_controller.get_button(1)){
+	  rfilter.setCutoff(22000*.0078125*(1+main_controller.get_knob(0)));
+	  rfilter.setQFactor(main_controller.get_knob(2)/128.0);
+	}
+	if(main_controller.get_button(0)){
+	  lpfilter.setCutoff(22000*.0078125*(1+main_controller.get_knob(0)));
+	  lpfilter.setQFactor((1 + main_controller.get_knob(1))/12.8);
+	}
+	
+	if(main_controller.get_button(0) && main_controller.get_button(1)){
+	  for(int j = 0; j < frames_to_deliver; j++){
+	    sum_frames[j] = lpfilter.tick(sum_frames[j]) + rfilter.tick(sum_frames[j]);
+	  }
+	}
+	else if(main_controller.get_button(0)){
+	  for(int j = 0; j < frames_to_deliver; j++){
+	    sum_frames[j] = lpfilter.tick(sum_frames[j]);
+	  }
+	}
+	else if(main_controller.get_button(1)){
+	  for(int j = 0; j < frames_to_deliver; j++){
+	    sum_frames[j] = rfilter.tick(sum_frames[j]);
+	  }
+	}
+	
+	if(num_on){
+	  set_wave_buffer(lowest_note, lowest_index, frames_to_deliver, sum_frames);
+	  while((err = snd_pcm_writei (playback_handle, sum_frames, frames_to_deliver)) != frames_to_deliver && is_window_open()) {
+	    snd_pcm_prepare (playback_handle);
+	    fprintf (stderr, "write to audio interface failed (%s)\n", snd_strerror (err));
+	  }
+	}
+	else{
+	  clear_wave_buffer();
+	  usleep(10);
+	}
     }
+    
     printf("Audio Thread is DEADBEEF\n");
     return NULL;
 }
@@ -531,7 +578,6 @@ int init_record(){
     snd_pcm_uframes_t buf_size;
     snd_pcm_uframes_t period_size;
     snd_pcm_get_params(capture_handle, &buf_size, &period_size);
-    printf("%d derp %d\n", buf_size, period_size);    
     snd_pcm_prepare (capture_handle);
 
     pthread_create(&cap_thread, NULL, &capture_thread, NULL);
@@ -541,7 +587,7 @@ int init_record(){
 
 int exit_record(){
   pthread_join(cap_thread, NULL);
-  snd_pcm_close (capture_handle);
+  return snd_pcm_close (capture_handle);
 }
 
 int init_alsa(){

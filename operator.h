@@ -32,9 +32,8 @@ class Operator{
   static int adsr(float attack_time_norm, float decay_time_norm, float release_time_norm, float attack_level_norm, float sustain_level_norm, int t, int s, float &adsr_out);
   
   Controller &controller;
-
-  RFilter r_filter;
   LPFilter lp_filter;
+  RFilter r_filter;
   
   int voice; //which voice. To prevent interference with the feedback part.
   float output[128];

@@ -118,7 +118,6 @@ int Controller::has_new_data(){
 }
 
 void *Controller::read_controller(void *nothing){
-  unsigned char c_byte;
   unsigned char packet[4];
   has_new = 1;
   std::queue<unsigned char> incoming;
