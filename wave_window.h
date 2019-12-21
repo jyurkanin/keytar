@@ -28,6 +28,7 @@
 #define MAIN_STATE 0
 #define SYNTH_STATE 1 //for selecting a specific synth module
 #define SCANNER_STATE 2 //Scanned Synthesis. Its cool.
+#define REVERB_STATE 3
 
 void init_window();
 void set_capture_fft(float *f_series, int len);

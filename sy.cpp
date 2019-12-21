@@ -8,7 +8,6 @@
 #include <alsa/asoundlib.h>
 #include "wave_window.h"
 
-using namespace stk;
 int generate_sample();
 
 

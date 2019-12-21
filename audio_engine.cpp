@@ -31,6 +31,7 @@ Filter *alg_filters[9];
 
 char cmd_state = MAIN_STATE;
 Scanner *scanner;
+Reverb reverb;
 
 #define ACOUSTIC_MODE 1
 #define MIDI_MODE 0
@@ -48,6 +49,10 @@ void set_state(char state){
 
 void set_scanner(Scanner *s){
   scanner = s;
+}
+
+Reverb *get_reverb(){
+    return &reverb;
 }
 
 void save_program(char* filename){
@@ -130,18 +135,18 @@ void load_program(char* filename){
   
   int num_controllers;
   for(int i = 0; i < num; i++){
-    in >> num_controllers;
-    for(int k = 0; k < num_controllers; k++){
-      for(int j = 0; j < 9; j++){
-	in >> synth_algorithms[i]->controllers[k].slider[j];
+      in >> num_controllers;
+      for(int k = 0; k < num_controllers; k++){
+          for(int j = 0; j < 9; j++){
+              in >> synth_algorithms[i]->controllers[k].slider[j];
+          }
+          for(int j = 0; j < 9; j++){
+              in >> synth_algorithms[i]->controllers[k].knob[j];
+          }
+          for(int j = 0; j < 9; j++){
+              in >> synth_algorithms[i]->controllers[k].button[j];
+          }
       }
-      for(int j = 0; j < 9; j++){
-	in >> synth_algorithms[i]->controllers[k].knob[j];
-      }
-      for(int j = 0; j < 9; j++){
-	in >> synth_algorithms[i]->controllers[k].button[j];
-      }
-    }
   }
   
 }
@@ -151,9 +156,9 @@ int getNumAlgorithms(){
 }
 
 SynthAlg* getSynth(int num){
-  if(num < (int) synth_algorithms.size())
-    return synth_algorithms[num];
-  return NULL;
+    if(num < (int) synth_algorithms.size())
+        return synth_algorithms[num];
+    return NULL;
 }
 
 Controller* getMainController(){
@@ -197,19 +202,12 @@ float synthesize_portamento(int curr, int last, int t, int s, int volume, int& s
 
 float synthesize(float freq, int t, int s, int volume, int& state){
   float sample = 0;
-  
-  /*  for(int i = 0; i < 9; i++){
-    temp = main_controller.get_knob(i);
-    if(temp != old_knobs[i]){
-      old_knobs[i] = temp;
-      alg_filters[i]->setCutoff(temp*.0078125*20000);
-    }
-    }*/
-
+    
   for(unsigned i = 0; i < synth_algorithms.size(); i++){
     //alg_filters[i]->tick
     sample += main_controller.get_slider(i) * compute_algorithm(freq, t, s, volume, i, state) / 128.0f;
   }
+  
   return sample;
 }
 
@@ -326,7 +324,7 @@ void *capture_thread(void *arg){
 }
 
 void *audio_thread_s(void *arg){
-    float sum_frames[441*CHANNELS];
+    float sum_frames[441];
     int err;
     int frames_to_deliver;
     
@@ -339,7 +337,7 @@ void *audio_thread_s(void *arg){
 	continue;
       }
       frames_to_deliver = frames_to_deliver > 441 ? 441 : frames_to_deliver;
-      memset(sum_frames, 0, CHANNELS*441*sizeof(float));
+      memset(sum_frames, 0, 441*sizeof(float));
 
       printf("CAptured freq %f\n", capture_freq); 
       for(int j = 0; j < frames_to_deliver; j++){
@@ -361,14 +359,15 @@ void *audio_thread_s(void *arg){
 }
 
 void *audio_thread(void *arg){
-    float sum_frames[441*CHANNELS];
+    float sum_frames[441];
+    
     int err;
     int num_on = 0;
     int frames_to_deliver;
     
     int lowest_note;
     int lowest_index;
-
+    
     int last_note = -1; //for modes that are monophonic and use portamento or whatever its called
     int curr_note = -1;
     int is_monophonic = 0; //scanned synthesis only at the moment
@@ -376,130 +375,142 @@ void *audio_thread(void *arg){
     RFilter rfilter(22000, .5);
     LPFilter lpfilter(22000);
     
-    printf("we here bish\n");
+    float stereo_frames[441*NUM_CHANNELS];
+    
+    
     while(is_window_open()){
         snd_pcm_wait(playback_handle, 100);
         frames_to_deliver = snd_pcm_avail_update(playback_handle);
         if ( frames_to_deliver == -EPIPE){
-	    snd_pcm_prepare(playback_handle);
+            snd_pcm_prepare(playback_handle);
             printf("Epipe\n");
             continue;
         }
-
+        
         frames_to_deliver = frames_to_deliver > 441 ? 441 : frames_to_deliver;
-        memset(sum_frames, 0, CHANNELS*441*sizeof(float));
-
-	is_monophonic = cmd_state == SCANNER_STATE;
-	lowest_note = 0;
-	//	if(synth_algorithms.size() > 0){ //this causes the buffer not to fill leading to massive cpu usage. Also it needs to be able to go through the music loop even if no algorithms are present due to scanned and wavetable synth mode
-	for(int k = 21; k <= 108; k++){
-	  //this is going to assume that the midi thread handles the sustaining. ANd will only issue a note off if the sustain is not active
-	  if(midiNotesPressed[k]){
-	    if(is_monophonic){
-	      sample.volume[k] = midiNotesPressed[k];
-	      midiNotesPressed[k] = 0;
-	      num_on = 1;
-	      scanner->strike();
-	      
-	      sample.index[k] = 1;
-	      sample.index_s[k] = 0;
-
-	      if(curr_note != -1 && k != curr_note){ //so that when you press the same note twice it doesnt shut it off
-		sample.index[curr_note] = 0;
-	      }
-	      last_note = curr_note;
-	      curr_note = k;
-
-	    }
-	    else{
-	      sample.volume[k] = midiNotesPressed[k];
-	      midiNotesPressed[k] = 0;
-	      num_on++;
-	      
-	      sample.index[k] = 1; //will cause state to transition to attack
-	      sample.index_s[k] = 0;
-	    }
-	  }
-	  else if(midiNotesReleased[k]){
-	    midiNotesReleased[k] = 0; //lets just pray we dont have race conditions.
-	    sample.index_s[k] = 1; //this will cause the state to transition to Release
-	  }
-	  
-	  
-	  if(sample.index[k]){
-	    setVoice(k);
-
-	    if(is_monophonic){
-	      for(int j = 0; j < frames_to_deliver; j++){
-		sum_frames[j] = synthesize_portamento(curr_note, last_note, sample.index[k], sample.index_s[k], sample.volume[k], sample.state[k]);
-		sample.index[k]++;
-		if(sample.state[k] == Operator::RELEASE) sample.index_s[k]++;
-	      }
-	      printf("Note %d\n", k);
-	    }
-	    else{
-	      for(int j = 0; j < frames_to_deliver; j++){
-		sum_frames[j] += synthesize(k, sample.index[k], sample.index_s[k], sample.volume[k], sample.state[k]);
-		sample.index[k]++;
-		if(sample.state[k] == Operator::RELEASE) sample.index_s[k]++;
-	      }
-	    }
+        memset(sum_frames, 0, 441*sizeof(float));
+        
+        is_monophonic = cmd_state == SCANNER_STATE;
+        lowest_note = 0;
+        for(int k = 21; k <= 108; k++){
+            //this is going to assume that the midi thread handles the sustaining. ANd will only issue a note off if the sustain is not active
+            if(midiNotesPressed[k]){
+                if(is_monophonic){
+                    sample.volume[k] = midiNotesPressed[k];
+                    midiNotesPressed[k] = 0;
+                    num_on = 1;
+                    scanner->strike();
+                    
+                    sample.index[k] = 1;
+                    sample.index_s[k] = 0;
+                    
+                    if(curr_note != -1 && k != curr_note){ //so that when you press the same note twice it doesnt shut it off
+                        sample.index[curr_note] = 0;
+                    }
+                    last_note = curr_note;
+                    curr_note = k;
+                    
+                }
+                else{
+                    sample.volume[k] = midiNotesPressed[k];
+                    midiNotesPressed[k] = 0;
+                    num_on++;
+                    
+                    sample.index[k] = 1; //will cause state to transition to attack
+                    sample.index_s[k] = 0;
+                }
+            }
+            else if(midiNotesReleased[k]){
+                midiNotesReleased[k] = 0; //lets just pray we dont have race conditions.
+                sample.index_s[k] = 1; //this will cause the state to transition to Release
+            }
+            
+            
+            if(sample.index[k]){
+                setVoice(k);
+                
+                if(is_monophonic){
+                    for(int j = 0; j < frames_to_deliver; j++){
+                        sum_frames[j] = synthesize_portamento(curr_note, last_note, sample.index[k], sample.index_s[k], sample.volume[k], sample.state[k]);
+                        sample.index[k]++;
+                        if(sample.state[k] == Operator::RELEASE) sample.index_s[k]++;
+                    }
+                    printf("Note %d\n", k);
+                }
+                else{
+                    for(int j = 0; j < frames_to_deliver; j++){
+                        sum_frames[j] += synthesize(k, sample.index[k], sample.index_s[k], sample.volume[k], sample.state[k]);
+                        sample.index[k]++;
+                        if(sample.state[k] == Operator::RELEASE) sample.index_s[k]++;
+                    }
+                }
 	    
 	    
-	    if(sample.state[k] == Operator::IDLE){
-	      curr_note = -1;
-	      last_note = -1; //useful for monophonic mode
-	      sample.index[k] = 0;
-	      sample.index_s[k] = 0;
-	      num_on--;
-	    }
-	    
-	    if(!lowest_note){
-	      lowest_note = k;
-	      lowest_index = sample.index[k];
-	    }
-	  }
-	}
-	
-	
-	if(main_controller.get_button(1)){
-	  rfilter.setCutoff(22000*.0078125*(1+main_controller.get_knob(0)));
-	  rfilter.setQFactor(main_controller.get_knob(2)/128.0);
-	}
-	if(main_controller.get_button(0)){
-	  lpfilter.setCutoff(22000*.0078125*(1+main_controller.get_knob(0)));
-	  lpfilter.setQFactor((1 + main_controller.get_knob(1))/12.8);
-	}
-	
-	if(main_controller.get_button(0) && main_controller.get_button(1)){
-	  for(int j = 0; j < frames_to_deliver; j++){
-	    sum_frames[j] = lpfilter.tick(sum_frames[j]) + rfilter.tick(sum_frames[j]);
-	  }
-	}
-	else if(main_controller.get_button(0)){
-	  for(int j = 0; j < frames_to_deliver; j++){
-	    sum_frames[j] = lpfilter.tick(sum_frames[j]);
-	  }
-	}
-	else if(main_controller.get_button(1)){
-	  for(int j = 0; j < frames_to_deliver; j++){
-	    sum_frames[j] = rfilter.tick(sum_frames[j]);
-	  }
-	}
-	
-	if(num_on){
-	  set_wave_buffer(lowest_note, lowest_index, frames_to_deliver, sum_frames);
-	  while((err = snd_pcm_writei (playback_handle, sum_frames, frames_to_deliver)) != frames_to_deliver && is_window_open()) {
-	    snd_pcm_prepare (playback_handle);
-	    fprintf (stderr, "write to audio interface failed (%s)\n", snd_strerror (err));
-	  }
-	}
-	else{
-	  clear_wave_buffer();
-	  usleep(10);
-	}
+                if(sample.state[k] == Operator::IDLE){
+                    curr_note = -1;
+                    last_note = -1; //useful for monophonic mode
+                    sample.index[k] = 0;
+                    sample.index_s[k] = 0;
+                    num_on--;
+                }
+                
+                if(!lowest_note){
+                    lowest_note = k;
+                    lowest_index = sample.index[k];
+                }
+            }
+        }
+        
+        
+        if(main_controller.get_button(1)){
+            rfilter.setCutoff(22000*.0078125*(1+main_controller.get_knob(0)));
+            rfilter.setQFactor(main_controller.get_knob(2)/128.0);
+        }
+        if(main_controller.get_button(0)){
+            lpfilter.setCutoff(22000*.0078125*(1+main_controller.get_knob(0)));
+            lpfilter.setQFactor((1 + main_controller.get_knob(1))/12.8);
+        }
+        
+        if(main_controller.get_button(0) && main_controller.get_button(1)){
+            for(int j = 0; j < frames_to_deliver; j++){
+                sum_frames[j] = lpfilter.tick(sum_frames[j]) + rfilter.tick(sum_frames[j]);
+            }
+        }
+        else if(main_controller.get_button(0)){
+            for(int j = 0; j < frames_to_deliver; j++){
+                sum_frames[j] = lpfilter.tick(sum_frames[j]);
+            }
+        }
+        else if(main_controller.get_button(1)){
+            for(int j = 0; j < frames_to_deliver; j++){
+                sum_frames[j] = rfilter.tick(sum_frames[j]);
+            }
+        }
+
+        if(main_controller.get_button(2)){
+            for(int j = 0; j < frames_to_deliver; j++){
+                reverb.tick(sum_frames[j], sum_frames[j], stereo_frames[2*j], stereo_frames[2*j + 1]);
+            }
+        }
+        else{
+            for(int j = 0; j < frames_to_deliver; j++){
+                stereo_frames[2*j] = sum_frames[j]; //split
+                stereo_frames[2*j + 1] = sum_frames[j];
+            }
+        }
+        
+        if(num_on){
+            set_wave_buffer(lowest_note, lowest_index, frames_to_deliver, sum_frames);
+            while((err = snd_pcm_writei (playback_handle, stereo_frames, frames_to_deliver)) != frames_to_deliver && is_window_open()) {
+                snd_pcm_prepare (playback_handle);
+                fprintf (stderr, "write to audio interface failed (%s)\n", snd_strerror (err));
+            }
+        }
+        else{
+            clear_wave_buffer();
+            usleep(10);
+        }
     }
-    
     printf("Audio Thread is DEADBEEF\n");
     return NULL;
 }
@@ -571,13 +582,14 @@ int init_record(){
     snd_pcm_hw_params_set_format (capture_handle, hw_params, SND_PCM_FORMAT_S16_LE);
     snd_pcm_hw_params_set_rate_near (capture_handle, hw_params, &sample_rate, NULL);
     snd_pcm_hw_params_set_buffer_size_near(capture_handle, hw_params, &buffer_size);
-    snd_pcm_hw_params_set_channels (capture_handle, hw_params, CHANNELS);
+    snd_pcm_hw_params_set_channels (capture_handle, hw_params, NUM_CHANNELS);
     snd_pcm_hw_params (capture_handle, hw_params);
     snd_pcm_hw_params_free (hw_params);
     
     snd_pcm_uframes_t buf_size;
     snd_pcm_uframes_t period_size;
     snd_pcm_get_params(capture_handle, &buf_size, &period_size);
+    printf("%d derp %d\n", buf_size, period_size);    
     snd_pcm_prepare (capture_handle);
 
     pthread_create(&cap_thread, NULL, &capture_thread, NULL);
@@ -608,7 +620,7 @@ int init_alsa(){
     snd_pcm_hw_params_set_access (playback_handle, hw_params, SND_PCM_ACCESS_RW_INTERLEAVED);
     snd_pcm_hw_params_set_format (playback_handle, hw_params, SND_PCM_FORMAT_FLOAT_LE);
     snd_pcm_hw_params_set_rate_near (playback_handle, hw_params, &sample_rate, NULL);
-    snd_pcm_hw_params_set_channels (playback_handle, hw_params, CHANNELS); //this thing
+    snd_pcm_hw_params_set_channels (playback_handle, hw_params, NUM_CHANNELS); //this thing
     snd_pcm_hw_params_set_buffer_size_near(playback_handle, hw_params, &buffer_size);
     snd_pcm_hw_params (playback_handle, hw_params);
     snd_pcm_hw_params_free (hw_params);
@@ -636,44 +648,7 @@ int init_alsa(){
     //printf("%d derp %d\n", buf_size, period_size);    
     snd_pcm_prepare(playback_handle);
 
-    memset(&sample, 0, sizeof(sample));
-
-
-    /*TEST
-    int frames_to_deliver = 441;
-    float sum_frames[441];
-
-    while(1){
-      if ((err = snd_pcm_wait (playback_handle, 100)) < 0) {
-	fprintf (stderr, "poll failed (%s)\n", strerror (errno));
-	break;
-      }	           
-      
-      if ((frames_to_deliver = snd_pcm_avail_update (playback_handle)) < 0) {
-	if (frames_to_deliver == -EPIPE) {
-	  fprintf (stderr, "an xrun occured\n");
-	  break;
-	} else {
-	  fprintf (stderr, "unknown ALSA avail update return value (%d)\n", 
-		   frames_to_deliver);
-	  break;
-	}
-      }
-      
-      frames_to_deliver = frames_to_deliver > 441 ? 441 : frames_to_deliver;
-      
-      
-      
-      for(int i = 0; i < frames_to_deliver; i++){
-	sum_frames[i] = sin(220*i);
-      }
-      if ((err = snd_pcm_writei (playback_handle, sum_frames, frames_to_deliver)) < 0) {
-	fprintf (stderr, "write failed (%s)\n", snd_strerror (err));
-      }
-    }
-    snd_pcm_drain(playback_handle);
-    //END TEST*/
-    
+    memset(&sample, 0, sizeof(sample));    
     return EXIT_SUCCESS;
 }
 

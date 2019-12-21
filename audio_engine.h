@@ -6,12 +6,6 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <time.h>
-#include "stk-4.6.0/include/OneZero.h"
-#include "stk-4.6.0/include/BlitSquare.h"
-#include "stk-4.6.0/include/Generator.h"
-#include "stk-4.6.0/include/SineWave.h"
-#include "stk-4.6.0/include/Iir.h"
-#include "stk-4.6.0/include/Stk.h"
 #include <alsa/asoundlib.h>
 #include <math.h>
 #include <stdlib.h>
@@ -20,6 +14,7 @@
 #include "wave_window.h"
 #include "synth.h"
 #include "controller.h"
+#include "reverb.h"
 #include "scanner.h"
 
 #define MIDI_NOTE_ON 0x90
@@ -29,9 +24,14 @@
 #define KEYS 88
 #define LOWEST_KEY 21
 #define SAMPLE_LEN 4410
-#define CHANNELS 1
+#define NUM_CHANNELS 2
 
 #define MAIN_CONTROLLER_NUM -1
+
+#define MAIN_STATE 0
+#define SYNTH_STATE 1 //for selecting a specific synth module
+#define SCANNER_STATE 2 //Scanned Synthesis. Its cool.
+#define REVERB_STATE 3
 
 typedef unsigned char MidiByte; //ugh
 
@@ -45,6 +45,7 @@ typedef struct{
 
 void set_state(char state);
 void set_scanner(Scanner *s);
+Reverb *get_reverb();
 
 float compute_algorithm(int n, int t, int s, int volume, int alg_num, int& state);
 float compute_algorithm(float freq, int t, int s, int volume, int alg_num, int& state);
