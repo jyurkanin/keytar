@@ -1,3 +1,7 @@
+/*
+ * This is the old Scanner file and it is less cool and it is stupid
+ */
+
 #pragma once
 
 #include <X11/Xlib.h>
@@ -35,7 +39,10 @@ class Scanner{
   float *zdd_table;    //this is the acceleration of the points
 
   float *x_table;
-  
+  float *xd_table;
+  float *xdd_table;
+
+    
   float *z_center;    //provides centering force
   float *z_damping;  
   float *x_stiffness;  //is size+1. Stiffness of spring connections between masses. Connects to end points which I guess can be pertuerbed if you want. SO not necessarily boundary conditions = 0

@@ -29,6 +29,55 @@ float dist(float *vec1, float *vec2, int len){
   return sqrt(sum);
 }
 
+int rainbow(int c){
+  static int red = 0x00;
+  static int green = 0x00;
+  static int blue = 0xFF;
+  static int state = 0;
+
+  static int counter = 0;
+  counter++;
+  if(counter < c){
+      int out = 0;
+      out = (red << 16) | (blue << 8) | green;
+      return out;
+  }
+  
+  counter = 0;
+
+  switch(state){
+  case 0:
+      green++;
+      if(green == 0x8F) state = 1;
+      break;
+//  case 1:
+//      red--;
+//      if(red == 0x00) state = 2;
+//      break;
+  case 1:
+      blue--;
+      if(blue == 0x00) state = 2;
+      break;
+  case 2:
+      blue++;
+      if(blue == 0x8F) state = 3;
+      break;
+//  case 4:
+//      red++;
+//      if(red == 0xFF) state = 5;
+//      break;
+  case 3:
+      green--;
+      if(green == 0x00) state = 0;
+      break;
+  }
+
+  int out = 0;
+  out = (red << 16) | (green << 8) | blue;
+  return out;
+  
+}
+
 Scanner::Scanner(int size){
   srand(1);
   update_freq_ = 441; //Hz
@@ -36,32 +85,33 @@ Scanner::Scanner(int size){
   zd_table = new float[size];
   zdd_table = new float[size];
 
+
+  z_table[size+1] = 0;
   x_table = new float[size+2]; //pretty much always going to want x_table[0] to be 0
   for(int i = 1; i < size + 2; i++){
-    //    x_table[i] = x_table[i-1] + 2*(float)rand()/RAND_MAX;//i*2;
-    x_table[i] = i*2;
+    x_table[i] = i*4;
   }
+  xd_table = new float[size];
+  xdd_table = new float[size];
 
-  //  z_table[0] = 0;
-  //  z_table[size+1] = 0;
   hammer_table = new float[size];
-  //hammer_table[0] = 1; //basically an impulse
-  for(int i = 0; i < size/2; i++){
-    //    hammer_table[i] = sin((i+1)*2*M_PI/(size+1))*10;
-    hammer_table[i] = 10;
+  for(int i = 0; i < size; i++){
+//      temp = sinf(M_PI*(i+1)/(size+2));
+      hammer_table[i] = 5*(i+1)/(size+2);//5*fabs(((size+2) / 2.0) - (i+1)) / ((size+2)/2);
   }
   
   z_center = new float[size];
   z_damping = new float[size];
   x_stiffness = new float[size+1];
   for(int i = 0; i < size+1; i++){
-    x_stiffness[i] = 2 * (float)rand()/RAND_MAX;
+    x_stiffness[i] = 8;
   }
+  
   masses = new float[size];
   for(int i = 0; i < size; i++){
-    masses[i] = 4;//2*(float)rand()/RAND_MAX;;
+    masses[i] = .1;//2*(float)rand()/RAND_MAX;;
     z_center[i] = 0.01;
-    z_damping[i] = 0; //seems to work well
+    z_damping[i] = 0.05; //seems to work well
   }
   
   table_size = size;
@@ -72,6 +122,8 @@ Scanner::~Scanner(){
   delete[] zd_table;
   delete[] zdd_table;
   delete[] x_table;
+  delete[] xd_table;
+  delete[] xdd_table;
   delete[] hammer_table;
   delete[] z_center;
   delete[] z_damping;
@@ -85,6 +137,7 @@ void Scanner::draw_scanner(Display *dpy, Window w, GC gc){
 
   //this first part draws the simulated nodes.
   //It takes up the top half of the screen.
+//  static int counter = 0x00;
   int x_pos;
   int x_pos2;
   int y_pos;
@@ -93,9 +146,9 @@ void Scanner::draw_scanner(Display *dpy, Window w, GC gc){
     x_pos = x_table[i]*(SCREEN_WIDTH-10)/length;
     x_pos2 = x_table[i+1]*(SCREEN_WIDTH-10)/length;
     y_pos = SCREEN_HEIGHT/4;
-    XSetForeground(dpy, gc, 0xFF);
+    XSetForeground(dpy, gc, rainbow(16));
     XDrawLine(dpy, w, gc, x_pos, y_pos + (z_table[i]*20), x_pos2, y_pos + (z_table[i+1]*20));
-    XSetForeground(dpy, gc, 0xFF00);    
+    XSetForeground(dpy, gc, 0xFF0000);    
     XDrawPoint(dpy, w, gc, x_pos, y_pos + (z_table[i]*20));
   }
   XFlush(dpy);
@@ -113,17 +166,20 @@ void Scanner::update_point(int i){
   float prev_dist[2] = {x_table[i] - x_table[i+1], z_table[i] - z_table[i+1]};         //distance from prev to current node
   spring_len = hypot(prev_dist[0], prev_dist[1]);                                      //get length of spring
   displacement = spring_len - EQ_LEN;
-  float Fp_k = (x_stiffness[i]*displacement*displacement) * (prev_dist[1] / spring_len);   //spring force in z direction
+  float Fp_kz = (x_stiffness[i]*displacement*displacement) * (prev_dist[1] / spring_len);   //spring force in z direction
+  float Fp_kx = (x_stiffness[i]*displacement*displacement) * (prev_dist[0] / spring_len); 
 
   float next_dist[2] = {x_table[i+2] - x_table[i+1], z_table[i+2] - z_table[i+1]};     //distance from next to current node
   spring_len = hypot(next_dist[0], next_dist[1]);                                      //get length of spring
   displacement = spring_len - EQ_LEN;
-  float Fn_k = (x_stiffness[i+1]*displacement*displacement) * (next_dist[1] / spring_len); //spring force in z direction
+  float Fn_kz = (x_stiffness[i+1]*displacement*displacement) * (next_dist[1] / spring_len); //spring force in z direction
+  float Fn_kx = (x_stiffness[i+1]*displacement*displacement) * (next_dist[0] / spring_len); 
   
-  float F_c = 0;//-z_table[i+1]*z_center[i];                                               //damping centering force
-  float F_b = -zd_table[i]*z_damping[i];
+  float F_bz = -zd_table[i]*z_damping[i];
+  float F_bx = -xd_table[i]*z_damping[i];
 
-  zdd_table[i] = (Fp_k + F_c + F_b + Fn_k) / masses[i];
+  zdd_table[i] = (Fp_kz + F_bz + Fn_kz) / masses[i];
+  xdd_table[i] = (Fp_kx + F_bx + Fn_kx) / masses[i];
 }
 
 float Scanner::tick(float pitch){
@@ -134,6 +190,14 @@ float Scanner::tick(float pitch){
     for(int i = 0; i < table_size; i++){
       zd_table[i] += (zdd_table[i] * TIMESTEP);
       z_table[i+1] +=  (zd_table[i] * TIMESTEP);
+/*      if(z_table[i+1] < -4){
+          z_table[i+1] = 4;
+          zd_table[i] = -zd_table[i]; //bounce
+        }
+*/
+      
+      xd_table[i] += (xdd_table[i] * TIMESTEP);
+      x_table[i+1] += (xd_table[i] * TIMESTEP);
     }
     
     k_++; //counts the number of updates

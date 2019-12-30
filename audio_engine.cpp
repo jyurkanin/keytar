@@ -197,7 +197,7 @@ float synthesize_portamento(int curr, int last, int t, int s, int volume, int& s
     p_freq += .001*(curr_freq - p_freq);
   }
   
-  return scanner->tick(p_freq)*volume;  
+  return scanner->tick(p_freq*.5)*volume;  
 }
 
 float synthesize(float freq, int t, int s, int volume, int& state){
@@ -389,8 +389,12 @@ void *audio_thread(void *arg){
         
         frames_to_deliver = frames_to_deliver > 441 ? 441 : frames_to_deliver;
         memset(sum_frames, 0, 441*sizeof(float));
+
+        if(cmd_state == SCANNER_STATE)
+            is_monophonic = 1;
+        else if(cmd_state == SYNTH_STATE)
+            is_monophonic = 0;
         
-        is_monophonic = cmd_state == SCANNER_STATE;
         lowest_note = 0;
         for(int k = 21; k <= 108; k++){
             //this is going to assume that the midi thread handles the sustaining. ANd will only issue a note off if the sustain is not active
