@@ -133,6 +133,22 @@ Scanner::~Scanner(){
   delete[] masses;
 }
 
+float Scanner::getDamping(){
+  return z_damping[0];
+}
+
+float Scanner::getMass(){
+  return masses[0];
+}
+
+float Scanner::getTension(){
+  return x_table[1] - x_table[0];
+}
+
+float Scanner::getStiffness(){
+  return x_stiffness[0];
+}
+
 void Scanner::draw_scanner(Display *dpy, Window w, GC gc){
 //  XSetForeground(dpy, gc, 0);
 //  XFillRectangle(dpy, w, gc, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
@@ -149,10 +165,32 @@ void Scanner::draw_scanner(Display *dpy, Window w, GC gc){
     x_pos2 = x_table[i+1]*(SCREEN_WIDTH-10)/length;
     y_pos = SCREEN_HEIGHT/4;
     XSetForeground(dpy, gc, rainbow(512));
-    XDrawLine(dpy, w, gc, x_pos, y_pos + (z_table[i]*40), x_pos2, y_pos + (z_table[i+1]*40));
+    XDrawLine(dpy, w, gc, x_pos, y_pos + (z_table[i]*20), x_pos2, y_pos + (z_table[i+1]*20));
     XSetForeground(dpy, gc, 0xFF0000);    
-    XDrawPoint(dpy, w, gc, x_pos, y_pos + (z_table[i]*40));
+    XDrawPoint(dpy, w, gc, x_pos, y_pos + (z_table[i]*20));
   }
+
+  XSetForeground(dpy, gc, 0);
+  XFillRectangle(dpy, w, gc, 1, SCREEN_HEIGHT/2, 120, 64);
+
+  XSetForeground(dpy, gc, 0xFF0000);
+  
+  char line[60];
+  memset(line, 0, sizeof(line));
+  sprintf(line, "Damping: %f", getDamping());
+  XDrawString(dpy, w, gc, 1, SCREEN_HEIGHT/2 + 16, line, 30);
+
+  memset(line, 0, sizeof(line));
+  sprintf(line, "Mass: %f", getMass());
+  XDrawString(dpy, w, gc, 1, SCREEN_HEIGHT/2 + 28, line, 30);
+
+  memset(line, 0, sizeof(line));
+  sprintf(line, "Tension: %f", getTension());
+  XDrawString(dpy, w, gc, 1, SCREEN_HEIGHT/2 + 40, line, 30);
+
+  memset(line, 0, sizeof(line));
+  sprintf(line, "Stiffness: %f", getStiffness());
+  XDrawString(dpy, w, gc, 1, SCREEN_HEIGHT/2 + 52, line, 30);
   XFlush(dpy);
 }
 
@@ -240,6 +278,41 @@ void Scanner::reset(){
   
 }
 
+void Scanner::activate(){
+  controller.activate();
+}
+
 void Scanner::setFreq(float freq){
   update_freq_ = freq;
+}
+
+void Scanner::setDamping(float f){
+  for(int i = 0; i < table_size; i++){
+    z_damping[i] = f;
+  }
+}
+
+void Scanner::randomize_hammer(){
+  for(int i = 0; i < table_size; i++){
+    hammer_table[i] = 10 - 20*(float)rand()/RAND_MAX;//sin((i+1)*2*M_PI/(size+1))*5 + 5*i/size;
+  }  
+}
+
+void Scanner::setMass(float f){
+  for(int i = 0; i < table_size; i++){
+    masses[i] = f;
+  }
+}
+
+void Scanner::setTension(float f){
+  x_table[0] = 0;
+  for(int i = 1; i < table_size+2; i++){
+    x_table[i] = x_table[i-1] + f;
+  }
+}
+
+void Scanner::setStiffness(float f){
+  for(int i = 0; i < table_size+1; i++){
+    x_stiffness[i] = f;
+  }
 }

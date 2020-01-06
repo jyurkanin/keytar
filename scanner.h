@@ -5,6 +5,7 @@
 #pragma once
 
 #include <X11/Xlib.h>
+#include "controller.h"
 
 #define OMEGA (2*M_PI/44100.0) //sample rate adjusted conversion from Hz to rad/s
 #define SCREEN_WIDTH 1920
@@ -25,10 +26,23 @@ class Scanner{
   void strike();
   void setBoundaries(float start, float end); //boundary conditions for the wave. can be perturbed
   void draw_scanner(Display *dpy, Window w, GC gc);
+  void activate();
+  void randomize_hammer();
   
   //getters, then setters
-  void setFreq(float scan_freq);
+  float getDamping();
+  float getMass();
+  float getTension();
+  float getStiffness();
   
+  void setFreq(float scan_freq);
+  void setDamping(float f);
+  void setMass(float f);
+  void setTension(float f);
+  void setStiffness(float f);
+
+
+  Controller controller;
  private:
   //actions
   void update_point(int i);

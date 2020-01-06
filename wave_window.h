@@ -13,7 +13,7 @@
 #include "audio_engine.h"
 #include "controller.h"
 #include "scanner.h"
-#include "circle_scanner.h"
+//#include "circle_scanner.h"
 
 #define NUM_SAMPLES 10
 #define W_BUF_SIZE 441 * 10
@@ -41,6 +41,8 @@ void del_window();
 
 char* get_string(); //read the keyboard for a string
 int get_num();
+
+Scanner* new_scanner();
 
 void clear_wave_buffer();
 void set_wave_buffer(float freq, int t, int buf_len, float* values);

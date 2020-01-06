@@ -136,7 +136,6 @@ int get_num(){ //read the keyboard for a number
 		  number[count] = buf[0];
 		  count++;
 		}
-		printf("Keypress %s\n", buf);
             }
         }
     } while(ks != 0xFF0D);
@@ -160,7 +159,7 @@ void *sy_window_thread(void * arg){
     int alg_num;
     int controller_num = 0;
 
-    Scanner scanner(1051);
+    Scanner *scanner = NULL;
     Reverb *reverb; 
     
     while(1){
@@ -177,7 +176,12 @@ void *sy_window_thread(void * arg){
             draw_synth_window(synth, controller_num);
             break;
         case SCANNER_STATE:
-            scanner.draw_scanner(dpy, w, gc);
+	  scanner->draw_scanner(dpy, w, gc);
+	  
+	  scanner->setDamping(scanner->controller.get_slider(0)/16.0);
+	  scanner->setMass((.1+scanner->controller.get_slider(1)/32.0));
+	  scanner->setTension((1+scanner->controller.get_slider(2)/16.0));
+	  scanner->setStiffness(scanner->controller.get_slider(3)/16.0);
             break;
         case REVERB_STATE:
             reverb->draw_reverb(dpy, w, gc);
@@ -247,8 +251,13 @@ void *sy_window_thread(void * arg){
                         break;
                     case 'm': //Scanned Synthesis. Special Case
                         cmd_state = SCANNER_STATE;
-                        set_state(cmd_state);
-                        set_scanner(&scanner);
+			set_state(cmd_state);
+
+			if(scanner == NULL){
+			  scanner = new_scanner();
+			}
+			set_scanner(scanner);
+			scanner->activate();
                         break;
                     case 'r': //Open the reverberator
                         cmd_state = REVERB_STATE;
@@ -273,6 +282,7 @@ void *sy_window_thread(void * arg){
                     switch(buf[0]){
                     case 'x':
                         cmd_state = MAIN_STATE;
+                        set_state(cmd_state);
                         activate_main_controller();
                         draw_main_params();
                         break;
@@ -286,6 +296,9 @@ void *sy_window_thread(void * arg){
                         cmd_state = MAIN_STATE;
                         activate_main_controller();
                         draw_main_params();
+                    case ' ':
+                        scanner->randomize_hammer();
+                        break;
                     }
                     break;
                 case REVERB_STATE:
@@ -300,6 +313,7 @@ void *sy_window_thread(void * arg){
                 }
             }        
         }
+        XFlush(dpy);
         usleep(1000);
     }
     
@@ -323,6 +337,17 @@ void draw_synth_selection_window(){
     for(int i = 0; i < _DRAW_SYNTH_LEN; i++){
       XDrawString(dpy, w, gc, 1, 12 + (i*12), _DRAW_SYNTH_MSG[i], _DRAW_SYNTH_MSG_LEN);
     }
+}
+
+Scanner* new_scanner(){
+  clear_left();
+  XSetForeground(dpy, gc, 0xFF);
+  char line[60] = "Enter Mass Number: ";
+  XDrawString(dpy, w, gc, 1, 12, line, 20);
+  XFlush(dpy);
+  
+  int num_masses = get_num();
+  return new Scanner(num_masses);
 }
 
 void draw_main_params(){
