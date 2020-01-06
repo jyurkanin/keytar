@@ -89,29 +89,31 @@ Scanner::Scanner(int size){
   z_table[size+1] = 0;
   x_table = new float[size+2]; //pretty much always going to want x_table[0] to be 0
   for(int i = 1; i < size + 2; i++){
-    x_table[i] = i*4;
+    x_table[i] = i*32;
   }
   xd_table = new float[size];
   xdd_table = new float[size];
 
   hammer_table = new float[size];
   for(int i = 0; i < size; i++){
+//      hammer_table[i] = 0;
 //      temp = sinf(M_PI*(i+1)/(size+2));
-      hammer_table[i] = 5*(i+1)/(size+2);//5*fabs(((size+2) / 2.0) - (i+1)) / ((size+2)/2);
+      hammer_table[i] = 5*sinf(M_PI*(i+1)/(size+2)); //5*fabs(((size+2) / 2.0) - (i+1)) / ((size+2)/2);
   }
+//  hammer_table[0] = 10;
   
   z_center = new float[size];
   z_damping = new float[size];
   x_stiffness = new float[size+1];
   for(int i = 0; i < size+1; i++){
-    x_stiffness[i] = 8;
+    x_stiffness[i] = 4;
   }
   
   masses = new float[size];
   for(int i = 0; i < size; i++){
-    masses[i] = .1;//2*(float)rand()/RAND_MAX;;
+    masses[i] = .2;//2*(float)rand()/RAND_MAX;;
     z_center[i] = 0.01;
-    z_damping[i] = 0.05; //seems to work well
+    z_damping[i] = .01; //seems to work well
   }
   
   table_size = size;
@@ -132,8 +134,8 @@ Scanner::~Scanner(){
 }
 
 void Scanner::draw_scanner(Display *dpy, Window w, GC gc){
-  XSetForeground(dpy, gc, 0);
-  XFillRectangle(dpy, w, gc, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+//  XSetForeground(dpy, gc, 0);
+//  XFillRectangle(dpy, w, gc, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
   //this first part draws the simulated nodes.
   //It takes up the top half of the screen.
@@ -146,10 +148,10 @@ void Scanner::draw_scanner(Display *dpy, Window w, GC gc){
     x_pos = x_table[i]*(SCREEN_WIDTH-10)/length;
     x_pos2 = x_table[i+1]*(SCREEN_WIDTH-10)/length;
     y_pos = SCREEN_HEIGHT/4;
-    XSetForeground(dpy, gc, rainbow(16));
-    XDrawLine(dpy, w, gc, x_pos, y_pos + (z_table[i]*20), x_pos2, y_pos + (z_table[i+1]*20));
+    XSetForeground(dpy, gc, rainbow(512));
+    XDrawLine(dpy, w, gc, x_pos, y_pos + (z_table[i]*40), x_pos2, y_pos + (z_table[i+1]*40));
     XSetForeground(dpy, gc, 0xFF0000);    
-    XDrawPoint(dpy, w, gc, x_pos, y_pos + (z_table[i]*20));
+    XDrawPoint(dpy, w, gc, x_pos, y_pos + (z_table[i]*40));
   }
   XFlush(dpy);
 }
@@ -184,23 +186,20 @@ void Scanner::update_point(int i){
 
 float Scanner::tick(float pitch){
   if(t_ > (k_*44100.0/update_freq_)){
-    for(int i = 0; i < table_size; i++){
-      update_point(i); //this updates accelerations.
-    }    
-    for(int i = 0; i < table_size; i++){
-      zd_table[i] += (zdd_table[i] * TIMESTEP);
-      z_table[i+1] +=  (zd_table[i] * TIMESTEP);
-/*      if(z_table[i+1] < -4){
-          z_table[i+1] = 4;
-          zd_table[i] = -zd_table[i]; //bounce
-        }
-*/
+      for(int i = 0; i < table_size; i++){
+          update_point(i); //this updates accelerations.
+      }    
+      for(int i = 0; i < table_size; i++){
+          zd_table[i] += (zdd_table[i] * TIMESTEP);
+          z_table[i+1] += (zd_table[i] * TIMESTEP);
+          
+          xd_table[i] += (xdd_table[i] * TIMESTEP);
+          x_table[i+1] += (xd_table[i] * TIMESTEP);
+      }
+
       
-      xd_table[i] += (xdd_table[i] * TIMESTEP);
-      x_table[i+1] += (xd_table[i] * TIMESTEP);
-    }
-    
-    k_++; //counts the number of updates
+      
+      k_++; //counts the number of updates
   }
   t_++;
 
@@ -219,11 +218,16 @@ void Scanner::strike(){
   //skip boundary condition
   t_ = 0;
   k_ = 0;
+  
+  memset(xd_table, 0, table_size*sizeof(float));
+  memset(xdd_table, 0, table_size*sizeof(float));
+  memset(zd_table, 0, table_size*sizeof(float));
+  memset(zdd_table, 0, table_size*sizeof(float));
   memcpy(&z_table[1], hammer_table, table_size*sizeof(float));
-  for(int i = 0; i < table_size+2; i++){
-    printf("%f ", z_table[i]);
-  }
-  printf("\n");
+//  for(int i = 0; i < table_size+2; i++){
+//    printf("%f ", z_table[i]);
+//  }
+//  printf("\n");
 }
 
 void Scanner::reset(){

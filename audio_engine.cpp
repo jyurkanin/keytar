@@ -196,8 +196,10 @@ float synthesize_portamento(int curr, int last, int t, int s, int volume, int& s
   else{
     p_freq += .001*(curr_freq - p_freq);
   }
+
+  state = 0;
   
-  return scanner->tick(p_freq*.5)*volume;  
+  return scanner->tick(p_freq*.5)*volume;
 }
 
 float synthesize(float freq, int t, int s, int volume, int& state){
@@ -439,7 +441,6 @@ void *audio_thread(void *arg){
                         sample.index[k]++;
                         if(sample.state[k] == Operator::RELEASE) sample.index_s[k]++;
                     }
-                    printf("Note %d\n", k);
                 }
                 else{
                     for(int j = 0; j < frames_to_deliver; j++){
@@ -451,8 +452,10 @@ void *audio_thread(void *arg){
 	    
 	    
                 if(sample.state[k] == Operator::IDLE){
-                    curr_note = -1;
-                    last_note = -1; //useful for monophonic mode
+                    if(is_monophonic){
+                        curr_note = -1;
+                        last_note = -1; //useful for monophonic mode
+                    }
                     sample.index[k] = 0;
                     sample.index_s[k] = 0;
                     num_on--;

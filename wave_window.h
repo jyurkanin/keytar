@@ -13,6 +13,7 @@
 #include "audio_engine.h"
 #include "controller.h"
 #include "scanner.h"
+#include "circle_scanner.h"
 
 #define NUM_SAMPLES 10
 #define W_BUF_SIZE 441 * 10

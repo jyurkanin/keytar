@@ -160,7 +160,7 @@ void *sy_window_thread(void * arg){
     int alg_num;
     int controller_num = 0;
 
-    Scanner scanner(20);
+    Scanner scanner(1051);
     Reverb *reverb; 
     
     while(1){
@@ -200,6 +200,7 @@ void *sy_window_thread(void * arg){
                             synth->controllers[controller_num].activate();
                             draw_synth_params(synth, controller_num);
                             cmd_state = SYNTH_STATE;
+                            set_state(cmd_state);
                         }
                     }
                     
@@ -210,6 +211,7 @@ void *sy_window_thread(void * arg){
                         break;
                     case 'a': //add a new synthalg
                         cmd_state = SYNTH_STATE;
+                        set_state(cmd_state);
                         clear_left();
                         draw_synth_selection_window();
                         XFlush(dpy);
