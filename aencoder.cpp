@@ -120,7 +120,7 @@ int main(){
     float *fft_list[100];
     for(int i = 0; i < 100; i++){
         memset(fn, 0, sizeof(fn));
-        sprintf(fn, "../AKWF/AKWF_%04d.wav", i+1);
+        sprintf(fn, "AKWF/AKWF_%04d.wav", i+1);
         
         WavFile *temp = new WavFile(fn);
         float *fft_coefficients = new float[temp->header.subchunk2Size];
