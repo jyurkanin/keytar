@@ -159,6 +159,7 @@ void *sy_window_thread(void * arg){
     int alg_num;
     int controller_num = 0;
 
+    PhysicalModel physical_model;
     Scanner *scanner = NULL;
     Reverb *reverb; 
     
@@ -176,15 +177,17 @@ void *sy_window_thread(void * arg){
             draw_synth_window(synth, controller_num);
             break;
         case SCANNER_STATE:
-	  scanner->draw_scanner(dpy, w, gc);
+            scanner->draw_scanner(dpy, w, gc);
 	  
-	  scanner->setDamping(scanner->controller.get_slider(0)/16.0);
-	  scanner->setMass((.1+scanner->controller.get_slider(1)/32.0));
-	  scanner->setTension((1+scanner->controller.get_slider(2)/16.0));
-	  scanner->setStiffness(scanner->controller.get_slider(3)/16.0);
+            scanner->setDamping(scanner->controller.get_slider(0)/16.0);
+            scanner->setMass((.1+scanner->controller.get_slider(1)/32.0));
+            scanner->setTension((1+scanner->controller.get_slider(2)/16.0));
+            scanner->setStiffness(scanner->controller.get_slider(3)/16.0);
             break;
         case REVERB_STATE:
             reverb->draw_reverb(dpy, w, gc);
+            break;
+        case PM_STATE:
             break;
         }
         
@@ -251,13 +254,23 @@ void *sy_window_thread(void * arg){
                         break;
                     case 'm': //Scanned Synthesis. Special Case
                         cmd_state = SCANNER_STATE;
-			set_state(cmd_state);
+                        set_state(cmd_state);
 
-			if(scanner == NULL){
-			  scanner = new_scanner();
-			}
-			set_scanner(scanner);
-			scanner->activate();
+                        if(scanner == NULL){
+                            scanner = new_scanner();
+                        }
+                        set_scanner(scanner);
+                        scanner->activate();
+                        break;
+                    case 'p': //Scanned Synthesis. Special Case
+                        cmd_state = PM_STATE;
+                        set_state(cmd_state);
+
+                        if(physical_model == NULL){
+                            physical_model = new PhysicalModel();
+                        }
+                        set_scanner(scanner);
+                        scanner->activate();
                         break;
                     case 'r': //Open the reverberator
                         cmd_state = REVERB_STATE;
@@ -301,6 +314,17 @@ void *sy_window_thread(void * arg){
                         break;
                     }
                     break;
+                case PM_STATE:
+                    switch(buf[0]){
+                    case 'x':
+                        cmd_state = MAIN_STATE;
+                        activate_main_controller();
+                        draw_main_params();
+                    case ' ':
+                        physical_model->randomize_hammer();
+                        break;
+                    }                    
+                    break;
                 case REVERB_STATE:
                     switch(buf[0]){
                     case 'x':
@@ -337,6 +361,15 @@ void draw_synth_selection_window(){
     for(int i = 0; i < _DRAW_SYNTH_LEN; i++){
       XDrawString(dpy, w, gc, 1, 12 + (i*12), _DRAW_SYNTH_MSG[i], _DRAW_SYNTH_MSG_LEN);
     }
+}
+
+PhysicalModel* new_physical_model(){
+    clear_left();
+    XSetForeground(dpy, gc, 0xFF);
+    XFlush(dpy);
+    int num_nodes = 152;
+    
+    return new PhysicalModel(num_nodes, );
 }
 
 Scanner* new_scanner(){

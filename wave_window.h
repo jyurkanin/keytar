@@ -30,6 +30,7 @@
 #define SYNTH_STATE 1 //for selecting a specific synth module
 #define SCANNER_STATE 2 //Scanned Synthesis. Its cool.
 #define REVERB_STATE 3
+#define PM_STATE 4
 
 void init_window();
 void set_capture_fft(float *f_series, int len);
@@ -41,6 +42,7 @@ void del_window();
 
 char* get_string(); //read the keyboard for a string
 int get_num();
+
 
 Scanner* new_scanner();
 

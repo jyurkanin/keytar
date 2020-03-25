@@ -13,4 +13,5 @@ all: $(OBJ)
 	$(CXX) -o sy $^ $(CFLAGS) $(LIBS)
 test:
 	$(CXX) -o test test.c $(CFLAGS) $(LIBS)
-
+train:
+	$(CXX) -o train aencoder.cpp fft.cpp -lm -g -Wall -lX11
