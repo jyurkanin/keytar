@@ -93,7 +93,7 @@ float FmSimpleAlg::tick(float freq, int t, int s, int &state){
   printf("%f\n", modulator.fm_input);
   modulator.tick(freq, t);
   modulator.envelope(t, s);
-  if(!controllers[1].get_button(3)){
+  if(controllers[1].get_button(0) || controllers[1].get_button(1)){
     modulator.filter(t, s);
   }
   
@@ -104,7 +104,7 @@ float FmSimpleAlg::tick(float freq, int t, int s, int &state){
   }
   carrier.tick(freq, t);
   state = carrier.envelope(t, s);
-  if(!controllers[0].get_button(3)){
+  if(controllers[0].get_button(0) || controllers[0].get_button(1)){
     carrier.filter(t, s);
   }
   return carrier.getOutput();

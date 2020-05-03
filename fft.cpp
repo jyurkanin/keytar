@@ -1,132 +1,109 @@
 #include "fft.h"
 #include <complex>
 #include <iostream>
-#include <valarray>
+#include <string.h>
+#include <vector>
 
 const double PI = 3.141592653589793238460;
- 
-typedef std::complex<double> Complex;
-typedef std::valarray<Complex> CArray;
- 
-// Cooley–Tukey FFT (in-place, divide-and-conquer)
-// Higher memory requirements and redundancy although more intuitive
-void fft(CArray& x)
-{
-    const size_t N = x.size();
-    if (N <= 1) return;
- 
-    // divide
-    CArray even = x[std::slice(0, N/2, 2)];
-    CArray  odd = x[std::slice(1, N/2, 2)];
- 
-    // conquer
-    fft(even);
-    fft(odd);
- 
-    // combine
-    for (size_t k = 0; k < N/2; ++k)
-    {
-        Complex t = std::polar(1.0, -2 * PI * k / N) * odd[k];
-        x[k    ] = even[k] + t;
-        x[k+N/2] = even[k] - t;
+using cd = std::complex<double>;
+using std::vector;
+
+void fft(vector<cd> & a, bool invert) {
+    int n = a.size();
+    if (n == 1)
+        return;
+
+    vector<cd> a0(n / 2), a1(n / 2);
+    for (int i = 0; 2 * i < n; i++) {
+        a0[i] = a[2*i];
+        a1[i] = a[2*i+1];
+    }
+    fft(a0, invert);
+    fft(a1, invert);
+
+    double ang = 2 * PI / n * (invert ? -1 : 1);
+    cd w(1), wn(cos(ang), sin(ang));
+    for (int i = 0; 2 * i < n; i++) {
+        a[i] = a0[i] + w * a1[i];
+        a[i + n/2] = a0[i] - w * a1[i];
+        if (invert) {
+            a[i] /= 2;
+            a[i + n/2] /= 2;
+        }
+        w *= wn;
     }
 }
 
-void fft_fake(CArray &x)
-{
-  printf("shiit\n");
-	// DFT
-	unsigned int N = x.size(), k = N, n;
-	double thetaT = 3.14159265358979323846264338328L / N;
-	Complex phiT = Complex(cos(thetaT), -sin(thetaT)), T;
-	while (k > 1)
-	{
-		n = k;
-		k >>= 1;
-		phiT = phiT * phiT;
-		T = 1.0L;
-		for (unsigned int l = 0; l < k; l++)
-		{
-			for (unsigned int a = l; a < N; a += n)
-			{
-				unsigned int b = a + k;
-				Complex t = x[a] - x[b];
-				x[a] += x[b];
-				x[b] = t * T;
-			}
-			T *= phiT;
-		}
-	}
-	// Decimate
-	unsigned int m = (unsigned int)log2(N);
-	for (unsigned int a = 0; a < N; a++)
-	{
-		unsigned int b = a;
-		// Reverse bits
-		b = (((b & 0xaaaaaaaa) >> 1) | ((b & 0x55555555) << 1));
-		b = (((b & 0xcccccccc) >> 2) | ((b & 0x33333333) << 2));
-		b = (((b & 0xf0f0f0f0) >> 4) | ((b & 0x0f0f0f0f) << 4));
-		b = (((b & 0xff00ff00) >> 8) | ((b & 0x00ff00ff) << 8));
-		b = ((b >> 16) | (b << 16)) >> (32 - m);
-		if (b > a)
-		{
-			Complex t = x[a];
-			x[a] = x[b];
-			x[b] = t;
-		}
-	}
-	//Complex f = 1.0 / sqrt(N);
-	//for (unsigned int i = 0; i < N; i++)
-	//	x[i] *= f;
-}
-
-// inverse fft (in-place)
-void ifft(CArray& x)
-{
+/*
+void ifft(CArray& x){
     x = x.apply(std::conj);
     fft( x );
     x = x.apply(std::conj);
     x /= x.size();
 }
+*/
 
-void calc_fft(float* input, float* result, int len){
-  Complex test[len];
-  for(int i = 0; i < len; i++){
-    test[i] = input[i];
-  }
-  CArray data(test, len);
-  
-  fft(data);
-  for(int i = 0; i < len; i++){    
-    result[i] = norm(data[i]);
-  }
+void calc_fft(float* input, float* mag, float* phase, int len, int zero_padding){
+    vector<cd> test;
+    for(int i = 0; i < len; i++){
+        test.push_back(input[i]);
+    }
+    for(int i = 0; i < zero_padding; i++){
+        test.push_back(0);
+    }
+    
+    fft(test, 0);
+    float max = -1;
+    for(int i = 0; i < len+zero_padding; i++){    
+        mag[i] = abs(test[i]);
+        if(mag[i] > max) max = mag[i];
+    }
+    for(int i = 0; i < len+zero_padding; i++){
+        if(mag[i] > max/100) phase[i] = arg(test[i]);
+        else phase[i] = 0;
+    }
 }
 
-void calc_fft(char* input, float* result, int len){
-  Complex test[len];
-  for(int i = 0; i < len; i++){
-    test[i] = input[i];
-  }
-  CArray data(test, len);
-  
-  fft(data);
-  for(int i = 0; i < len; i++){    
-    result[i] = norm(data[i]);
-  }
+void calc_ifft(float* output, float* mag, float* phase, int len, int zero_padding){
+    vector<cd> test;
+    for(int i = 0; i < len+zero_padding; i++){
+        test.push_back(std::polar(mag[i], phase[i]));
+    }
+    
+    fft(test, 1);
+    for(int i = 0; i < len; i++){    
+        output[i] = real(test[i]) + 1;
+    }
 }
 
-void calc_fft(std::deque<float>::iterator buffer, float* result, int len)
-{
-  Complex test[len];
-  for(int i = 0; i < len; i++){
-    test[i] = *buffer;
-    buffer++;
-  }
-  CArray data(test, len);
-  
-  
-  fft(data);
-  for(int i = 0; i < len; i++){    
-    result[i] = norm(data[i]);
-  }
+
+
+void calc_fft(std::deque<float>::iterator buffer, float* result, int len, int zero_padding, int window){
+    vector<cd> test;
+    float num = log2(len);
+    num = ceil(num);
+    
+    for(int i = 0; i < len; i++){
+        if(window)
+            test.push_back((*buffer)*cos(3.14159*i/(len-1)));
+        else
+            test.push_back(*buffer);
+        
+        buffer++;
+    }
+    for(int i = 0; i < zero_padding; i++){
+        test.push_back(0);
+    }
+    
+    fft(test, 0);
+    for(int i = 0; i < len+zero_padding; i++){    
+        result[i] = norm(test[i]);
+    }
 }
+
+void apply_hann_window(float* input, int len){
+    for(int i = 0; i < len; i++){
+        input[i] *= cos(3.14159*i/((float)(len-1)));
+    }
+}
+

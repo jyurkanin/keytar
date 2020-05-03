@@ -159,9 +159,6 @@ int Operator::filter(int t, int s){
   float attack_level_norm = controller.get_knob(7)*.0078125* (20000-freq_);
   float sustain_level_norm = controller.get_knob(8)*.0078125* (20000-freq_);
   
-  r_filter.setQFactor(controller.get_slider(7)/128.0);
-  lp_filter.setQFactor((1 + controller.get_slider(8))/12.8);
-
   float r_cutoff;
   float lp_cutoff;
 
@@ -170,9 +167,11 @@ int Operator::filter(int t, int s){
   r_cutoff = lp_cutoff = adsr_out;
   
   if(controller.get_button(0)){
+    r_filter.setQFactor(controller.get_slider(7)/128.0);
     r_filter.setCutoff(r_cutoff);
   }
   if(controller.get_button(1)){
+    lp_filter.setQFactor((1 + controller.get_slider(8))/12.8);
     lp_filter.setCutoff(lp_cutoff);
   }
   

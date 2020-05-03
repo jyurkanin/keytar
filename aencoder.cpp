@@ -104,12 +104,6 @@ void plot_wave(float* values, int len){
     XFlush(dpy);
 }
 
-void apply_hann_window(float* input, int len){
-    for(int i = 0; i < len; i++){
-        input[i] *= cos(3.14159*i/((float)(len-1)));
-    }
-}
-
 int main(){
     int num_puts = 152;
     char fn[100];

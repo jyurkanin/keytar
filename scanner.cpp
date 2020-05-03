@@ -78,6 +78,12 @@ int rainbow(int c){
   
 }
 
+
+
+
+
+
+
 Scanner::Scanner(int size){
   srand(1);
   update_freq_ = 441; //Hz
@@ -86,6 +92,7 @@ Scanner::Scanner(int size){
   zdd_table = new float[size];
 
 
+  z_table[0] = 0;
   z_table[size+1] = 0;
   x_table = new float[size+2]; //pretty much always going to want x_table[0] to be 0
   for(int i = 1; i < size + 2; i++){
@@ -116,6 +123,7 @@ Scanner::Scanner(int size){
     z_damping[i] = .01; //seems to work well
   }
   
+  i_vel = 0;
   table_size = size;
 }
 
@@ -133,6 +141,16 @@ Scanner::~Scanner(){
   delete[] masses;
 }
 
+void Scanner::updateParams(){
+        setDamping(controller.get_slider(0)/16.0);
+        setMass((.1+controller.get_slider(1)/32.0));
+        setTension((1+controller.get_slider(2)/16.0));
+        setStiffness(controller.get_slider(3)/16.0);
+        setVolume(controller.get_slider(4));
+
+        i_vel = controller.get_slider(5);
+}
+
 float Scanner::getDamping(){
   return z_damping[0];
 }
@@ -147,6 +165,14 @@ float Scanner::getTension(){
 
 float Scanner::getStiffness(){
   return x_stiffness[0];
+}
+
+float Scanner::getVolume(){
+  return volume;
+}
+
+float Scanner::getVelocity(){
+  return i_vel;
 }
 
 void Scanner::draw_scanner(Display *dpy, Window w, GC gc){
@@ -191,6 +217,14 @@ void Scanner::draw_scanner(Display *dpy, Window w, GC gc){
   memset(line, 0, sizeof(line));
   sprintf(line, "Stiffness: %f", getStiffness());
   XDrawString(dpy, w, gc, 1, SCREEN_HEIGHT/2 + 52, line, 30);
+
+  memset(line, 0, sizeof(line));
+  sprintf(line, "Volume: %f", getVolume());
+  XDrawString(dpy, w, gc, 1, SCREEN_HEIGHT/2 + 64, line, 30);
+
+  memset(line, 0, sizeof(line));
+  sprintf(line, "Initial Velocity: %f", getVelocity());
+  XDrawString(dpy, w, gc, 1, SCREEN_HEIGHT/2 + 76, line, 30);
   XFlush(dpy);
 }
 
@@ -247,7 +281,7 @@ float Scanner::tick(float pitch){
   float diff = index - lower;
   float sample = z_table[lower]*(1-diff) + z_table[lower+1]*(diff);
 
-  return sample * .005;
+  return sample * .005 * volume / 127.0;
   //  return z_table[lower]*.005; //sample*.05;
 }
 
@@ -259,12 +293,13 @@ void Scanner::strike(){
   
   memset(xd_table, 0, table_size*sizeof(float));
   memset(xdd_table, 0, table_size*sizeof(float));
+
   memset(zd_table, 0, table_size*sizeof(float));
   memset(zdd_table, 0, table_size*sizeof(float));
+
   memcpy(&z_table[1], hammer_table, table_size*sizeof(float));
-//  for(int i = 0; i < table_size+2; i++){
-//    printf("%f ", z_table[i]);
-//  }
+
+
 //  printf("\n");
 }
 
@@ -284,6 +319,10 @@ void Scanner::activate(){
 
 void Scanner::setFreq(float freq){
   update_freq_ = freq;
+}
+
+void Scanner::setVolume(float vol){
+  volume = vol;
 }
 
 void Scanner::setDamping(float f){

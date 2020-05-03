@@ -28,19 +28,24 @@ class Scanner{
   void draw_scanner(Display *dpy, Window w, GC gc);
   void activate();
   void randomize_hammer();
+  void updateParams();
+
   
   //getters, then setters
   float getDamping();
   float getMass();
   float getTension();
   float getStiffness();
+  float getVolume();
+  float getVelocity();
+
   
   void setFreq(float scan_freq);
   void setDamping(float f);
   void setMass(float f);
   void setTension(float f);
   void setStiffness(float f);
-
+  void setVolume(float v);
 
   Controller controller;
  private:
@@ -68,7 +73,9 @@ class Scanner{
   unsigned int t_; //t_ is the number of sampling periods passed.
   float update_freq_;
   float time_step;
-
+  float volume;
+  float i_vel;
+  
   const float EQ_LEN = 1; //length of the spring with no forces acting on it. Not sure this matters.
   const float X_DIST = 1;
   const float TIMESTEP = .01; //simulate with discrete timestep = 1 milliseconds

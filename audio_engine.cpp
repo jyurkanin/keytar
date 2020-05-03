@@ -258,11 +258,14 @@ void delSynth(int alg){
   delete temp;
 }
 
+
+//Plz ignore this function. It was a good idea but it didn't go anywhere. Yet.
 void *capture_thread(void *arg){
   int frames_to_deliver = 1764;
   int16_t capture_frames[frames_to_deliver];
   int buff_len = 1764;
   float f_series[buff_len];
+  float phase[buff_len];
   float temp_array[buff_len];
   int err;
   float freq_div = 44100.0/buff_len;
@@ -271,10 +274,12 @@ void *capture_thread(void *arg){
   int max_array[10];
   float temp_freq;
   
-  /*  snd_pcm_start(capture_handle);
+  /*
+  snd_pcm_start(capture_handle);
   snd_pcm_drop(capture_handle);
-  snd_pcm_prepare(capture_handle);*/
-
+  snd_pcm_prepare(capture_handle);
+  */
+  
   printf("test %d\n", SND_PCM_STATE_PREPARED);
   
   while(is_window_open()){
@@ -287,39 +292,41 @@ void *capture_thread(void *arg){
       temp_array[i] = capture_frames[i]*5 / 32768.0;
     }
     
-    calc_fft(temp_array, f_series, buff_len);
+    calc_fft(temp_array, f_series, phase, buff_len, 1024-buff_len);
     
     set_capture_fft(f_series, buff_len);
     fft_q.clear();
-
-
+    
+    
     
     for(int j = 0; j < 10; j++){
-      max_array[j] = -1;
-      for(int i = 20; i < buff_len*.125; i++){
-	if(f_series[i] > max_array[j]){
-	  max_array[j] = i;
-	}
-      }
-      printf("MAX FREQ %d %f %f\n", max_array[j], max_array[j] * freq_div, f_series[max_array[j]]);
-      f_series[max_array[j]] = 0;
+        max_array[j] = -1;
+        for(int i = 20; i < buff_len*.125; i++){
+            if(f_series[i] > max_array[j]){
+                max_array[j] = i;
+            }
+        }
+        printf("MAX FREQ %d %f %f\n", max_array[j], max_array[j] * freq_div, f_series[max_array[j]]);
+        f_series[max_array[j]] = 0;
     }
     
     
-    if(max_array[0] == 20) temp_freq = 0;
+    if(max_array[0] == 20){
+        temp_freq = 0;
+    }
     else{
-      temp_freq = 0;
-      for(int i = 0; i < 10; i++){
-	temp_freq += max_array[i]*freq_div;
-      }
-      temp_freq /= 10.0;
+        temp_freq = 0;
+        for(int i = 0; i < 10; i++){
+            temp_freq += max_array[i]*freq_div;
+        }
+        temp_freq /= 10.0;
     }
-
+    
     if(capture_freq == 0){
-      capture_freq = temp_freq;
+        capture_freq = temp_freq;
     }
     else{
-      capture_freq = (.3*temp_freq) + (.7*capture_freq);
+        capture_freq = (.3*temp_freq) + (.7*capture_freq);
     }
   }
   return NULL;
@@ -331,30 +338,30 @@ void *audio_thread_s(void *arg){
     int frames_to_deliver;
     
     while(is_window_open()){
-      snd_pcm_wait(playback_handle, 100);
-      frames_to_deliver = snd_pcm_avail_update(playback_handle);
-      if ( frames_to_deliver == -EPIPE){
-	snd_pcm_prepare(playback_handle);
-	printf("Epipe\n");
-	continue;
-      }
-      frames_to_deliver = frames_to_deliver > 441 ? 441 : frames_to_deliver;
-      memset(sum_frames, 0, 441*sizeof(float));
-
-      printf("CAptured freq %f\n", capture_freq); 
-      for(int j = 0; j < frames_to_deliver; j++){
-	if(capture_freq){
-	  sum_frames[j] = synthesize(capture_freq, sample.index[0], sample.index_s[0], 100, sample.state[0]);
-	  sample.index[0]++;
-	}
-      }
-      
-      set_wave_buffer(capture_freq, sample.index[0], frames_to_deliver, sum_frames);
-      
-      while((err = snd_pcm_writei (playback_handle, sum_frames, frames_to_deliver)) != frames_to_deliver && is_window_open()) {
-	snd_pcm_prepare (playback_handle);
-	fprintf (stderr, "write to audio interface failed (%s)\n", snd_strerror (err));
-      }      
+        snd_pcm_wait(playback_handle, 100);
+        frames_to_deliver = snd_pcm_avail_update(playback_handle);
+        if ( frames_to_deliver == -EPIPE){
+            snd_pcm_prepare(playback_handle);
+            printf("Epipe\n");
+            continue;
+        }
+        frames_to_deliver = frames_to_deliver > 441 ? 441 : frames_to_deliver;
+        memset(sum_frames, 0, 441*sizeof(float));
+        
+        printf("CAptured freq %f\n", capture_freq); 
+        for(int j = 0; j < frames_to_deliver; j++){
+            if(capture_freq){
+                sum_frames[j] = synthesize(capture_freq, sample.index[0], sample.index_s[0], 100, sample.state[0]);
+                sample.index[0]++;
+            }
+        }
+        
+        set_wave_buffer(capture_freq, sample.index[0], frames_to_deliver, sum_frames);
+        
+        while((err = snd_pcm_writei (playback_handle, sum_frames, frames_to_deliver)) != frames_to_deliver && is_window_open()) {
+            snd_pcm_prepare (playback_handle);
+            fprintf (stderr, "write to audio interface failed (%s)\n", snd_strerror (err));
+        }      
     }
     printf("Audio Thread is DEADBEEF\n");
     return NULL;
@@ -391,7 +398,7 @@ void *audio_thread(void *arg){
         
         frames_to_deliver = frames_to_deliver > 441 ? 441 : frames_to_deliver;
         memset(sum_frames, 0, 441*sizeof(float));
-
+        
         if(cmd_state == SCANNER_STATE)
             is_monophonic = 1;
         else if(cmd_state == SYNTH_STATE)
@@ -678,7 +685,7 @@ void *midi_loop(void *ignoreme){
     }
     else{
       if(incoming.size() == 0 && !(temp & 0b10000000)){ //so if the first byte in the sequence is not a status byte, use the last status byte.
-	incoming.push(last_status_byte);
+          incoming.push(last_status_byte);
       }
       incoming.push(temp);
     }
@@ -690,7 +697,7 @@ void *midi_loop(void *ignoreme){
     }
     else continue;
     
-    printf("keyboard %d %d %d\n", packet[0], packet[1], packet[2]);
+//    printf("keyboard %d %d %d\n", packet[0], packet[1], packet[2]);
     
     last_status_byte = packet[0];
     

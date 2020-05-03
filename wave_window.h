@@ -17,7 +17,7 @@
 
 #define NUM_SAMPLES 10
 #define W_BUF_SIZE 441 * 10
-#define W_SAMPLE_LEN 441
+#define W_SAMPLE_LEN 1024
 #define MAX_PLOT_LENGTH 958
 #define MAX_PLOT_WIDTH 538
 #define NUM_PLOTS 3

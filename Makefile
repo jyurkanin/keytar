@@ -14,4 +14,4 @@ all: $(OBJ)
 test:
 	$(CXX) -o test test.c $(CFLAGS) $(LIBS)
 train:
-	$(CXX) -o train aencoder.cpp fft.cpp -lm -g -Wall -lX11
+	$(CXX) -o train aencoder.cpp fft.cpp -lm -lfann -g -Wall -lX11
