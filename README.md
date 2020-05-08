@@ -21,7 +21,14 @@ Good Luck getting this to run on your computer.
 I hardcoded screen dimensions and theres no telling
 what else will cause problems.
 
+Oh I also hardcoded for this midi controller:
+https://www.amazon.com/gp/product/B01DKQZFSC/ref=ppx_yo_dt_b_search_asin_title?ie=UTF8&psc=1
+
 On Ubuntu you will need to:
 apt install libx11-dev
 
+Compile with
+make
 
+Run with
+./sy <>
