@@ -31,4 +31,11 @@ Compile with
 make
 
 Run with
-./sy <>
+./sy <midi keyboard> <midi controller>
+
+Ex: 
+./sy /dev/midi3 /dev/midi2
+
+Press 'r' to enter the reverb screen and use the controller to change the values.
+Press 'm' to enter the scanned synthesis screen and use the controller to change the values.
+
