@@ -10,9 +10,9 @@ pthread_t Controller::c_thread;
 Controller *Controller::active_controller;
 
 Controller::Controller(){
-  memset(slider, 0, 9*sizeof(int));
-  memset(knob, 0, 9*sizeof(int));
-  memset(button, 0, 9*sizeof(int));
+  memset(slider, 0, sizeof(slider));
+  memset(knob, 0, sizeof(knob));
+  memset(button, 0, sizeof(button));
   start = 0;
   stop = 0;
   record = 0;
@@ -141,43 +141,44 @@ void *Controller::read_controller(void *nothing){
     has_new = 1;
     
     if(packet[0] == PEDAL){
-      if(packet[1] >= 3 && packet[1] <= 11){
-	active_controller->slider[packet[1] - 3] = packet[2];
-      }
-      else if(packet[1] >= 14 && packet[1] <= 22){
-	active_controller->knob[packet[1] - 14] = packet[2];
-      }
-      else if(packet[1] == 9){
-	active_controller->big_slider = packet[2];
-      }
-      else if(packet[1] == 10){
-	if(packet[2]) active_controller->big_knob = packet[2];
-      }
-      else if(packet[1] >= 23 && packet[1] <= 31 && packet[2]){
-	active_controller->button[packet[1] - 23] ^= 1; //this toggles the state of the button
-      }
-      else if(packet[2]){ //only assign it if it was pressed. The application that reads it will have to reset the button.
-	switch(packet[1]){
-	case 49:
-	  active_controller->loop_back = packet[2];
-	  break;
-	case 47:
-	  active_controller->rewind = packet[2];
-	  break;
-	case 48:
-	  active_controller->fastforward = packet[2];
-	  break;
-	case 46:
-	  active_controller->stop = packet[2];
-	  break;
-	case 45:
-	  active_controller->start = packet[2];
-	  break;
-	case 44:
-	  active_controller->record = packet[2];
-	  break;
-	}
-      }
+        if(packet[1] == 9){
+            active_controller->big_slider = packet[2];
+        }
+        else if(packet[1] == 10){
+            active_controller->big_knob = packet[2];
+        }
+        
+        if(packet[1] >= 3 && packet[1] <= 11){
+            active_controller->slider[packet[1] - 3] = packet[2];
+        }
+        else if(packet[1] >= 14 && packet[1] <= 22){
+            active_controller->knob[packet[1] - 14] = packet[2];
+        }
+        else if(packet[1] >= 23 && packet[1] <= 31 && packet[2]){
+            active_controller->button[packet[1] - 23] ^= 1; //this toggles the state of the button
+        }
+        else if(packet[2]){ //only assign it if it was pressed. The application that reads it will have to reset the button.
+            switch(packet[1]){
+            case 49:
+                active_controller->loop_back = packet[2];
+                break;
+            case 47:
+                active_controller->rewind = packet[2];
+                break;
+            case 48:
+                active_controller->fastforward = packet[2];
+                break;
+            case 46:
+                active_controller->stop = packet[2];
+                break;
+            case 45:
+                active_controller->start = packet[2];
+                break;
+            case 44:
+                active_controller->record = packet[2];
+                break;
+            }
+        }
     }
   }
   printf("Controller Thread is DEADBEEF\n");

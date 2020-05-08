@@ -5,7 +5,8 @@
  * Schematic:
  * Inspired by http://msp.ucsd.edu/techniques/latest/book-html/node111.html figure 7.15
  *
- * This is so autistic. I can't believe I did this sober
+ * Lol nice.
+ * Note: These are not all pass filters. If the delay is too small, you will get spectral coloring. Which can sound pretty sick
  *
  * "=" is 2 channel signal
  * "-" is 1 channel signal

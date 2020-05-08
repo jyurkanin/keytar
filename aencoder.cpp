@@ -110,7 +110,6 @@ int main(){
 
     init_plot();
 
-    int cock;
     float *fft_list[100];
     for(int i = 0; i < 100; i++){
         memset(fn, 0, sizeof(fn));
@@ -129,7 +128,6 @@ int main(){
         plot_wave(fft_list[i], temp->header.subchunk2Size);
         
 //        std::cout << "Press Enter";
-//        std::cin >> cock;
         delete temp;
         
     }

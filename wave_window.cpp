@@ -177,11 +177,7 @@ void *sy_window_thread(void * arg){
             break;
         case SCANNER_STATE:
             scanner->draw_scanner(dpy, w, gc);
-	  
-            scanner->setDamping(scanner->controller.get_slider(0)/16.0);
-            scanner->setMass((.1+scanner->controller.get_slider(1)/32.0));
-            scanner->setTension((1+scanner->controller.get_slider(2)/16.0));
-            scanner->setStiffness(scanner->controller.get_slider(3)/16.0);
+            scanner->updateParams();
             break;
         case REVERB_STATE:
             reverb->draw_reverb(dpy, w, gc);
@@ -251,13 +247,13 @@ void *sy_window_thread(void * arg){
                         break;
                     case 'm': //Scanned Synthesis. Special Case
                         cmd_state = SCANNER_STATE;
-			set_state(cmd_state);
+                        set_state(cmd_state);
 
-			if(scanner == NULL){
-			  scanner = new_scanner();
-			}
-			set_scanner(scanner);
-			scanner->activate();
+                        if(scanner == NULL){
+                            scanner = new_scanner();
+                        }
+                        set_scanner(scanner);
+                        scanner->activate();
                         break;
                     case 'r': //Open the reverberator
                         cmd_state = REVERB_STATE;
@@ -296,8 +292,6 @@ void *sy_window_thread(void * arg){
                         cmd_state = MAIN_STATE;
                         activate_main_controller();
                         draw_main_params();
-                    case ' ':
-                        scanner->randomize_hammer();
                         break;
                     }
                     break;

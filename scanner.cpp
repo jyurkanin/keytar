@@ -1,4 +1,5 @@
 #include "scanner.h"
+#include "wavfile.h"
 #include <string.h>
 #include <math.h>
 #include <cstdio>
@@ -124,7 +125,10 @@ Scanner::Scanner(int size){
   }
   
   i_vel = 0;
+  volume = 0;
   table_size = size;
+  hammer_num = 0;
+  rainbow_rate = 127;
 }
 
 Scanner::~Scanner(){
@@ -148,6 +152,12 @@ void Scanner::updateParams(){
         setStiffness(controller.get_slider(3)/16.0);
         setVolume(controller.get_slider(4));
 
+        if(controller.get_big_knob() != hammer_num){
+            setHammer(controller.get_big_knob());
+        }
+        
+        rainbow_rate = controller.get_big_slider();
+        
         i_vel = controller.get_slider(5);
 }
 
@@ -190,14 +200,14 @@ void Scanner::draw_scanner(Display *dpy, Window w, GC gc){
     x_pos = x_table[i]*(SCREEN_WIDTH-10)/length;
     x_pos2 = x_table[i+1]*(SCREEN_WIDTH-10)/length;
     y_pos = SCREEN_HEIGHT/4;
-    XSetForeground(dpy, gc, rainbow(512));
+    XSetForeground(dpy, gc, rainbow(4*rainbow_rate));
     XDrawLine(dpy, w, gc, x_pos, y_pos + (z_table[i]*20), x_pos2, y_pos + (z_table[i+1]*20));
     XSetForeground(dpy, gc, 0xFF0000);    
     XDrawPoint(dpy, w, gc, x_pos, y_pos + (z_table[i]*20));
   }
 
   XSetForeground(dpy, gc, 0);
-  XFillRectangle(dpy, w, gc, 1, SCREEN_HEIGHT/2, 120, 64);
+  XFillRectangle(dpy, w, gc, 1, SCREEN_HEIGHT/2, 120, 100);
 
   XSetForeground(dpy, gc, 0xFF0000);
   
@@ -223,8 +233,16 @@ void Scanner::draw_scanner(Display *dpy, Window w, GC gc){
   XDrawString(dpy, w, gc, 1, SCREEN_HEIGHT/2 + 64, line, 30);
 
   memset(line, 0, sizeof(line));
-  sprintf(line, "Initial Velocity: %f", getVelocity());
+  sprintf(line, "Initial Velocity: %f Not Used", getVelocity());
   XDrawString(dpy, w, gc, 1, SCREEN_HEIGHT/2 + 76, line, 30);
+  
+  memset(line, 0, sizeof(line));
+  sprintf(line, "Hammer waveform: %d", hammer_num);
+  XDrawString(dpy, w, gc, 1, SCREEN_HEIGHT/2 + 88, line, 30);
+  
+  memset(line, 0, sizeof(line));
+  sprintf(line, "Rainbow rate: %d", rainbow_rate);
+  XDrawString(dpy, w, gc, 1, SCREEN_HEIGHT/2 + 100, line, 30);
   XFlush(dpy);
 }
 
@@ -331,10 +349,52 @@ void Scanner::setDamping(float f){
   }
 }
 
-void Scanner::randomize_hammer(){
-  for(int i = 0; i < table_size; i++){
-    hammer_table[i] = 10 - 20*(float)rand()/RAND_MAX;//sin((i+1)*2*M_PI/(size+1))*5 + 5*i/size;
-  }  
+void Scanner::setHammer(int num){
+    char fn[100];
+    memset(fn, 0, sizeof(fn));
+    sprintf(fn, "AKWF/AKWF_%04d.wav", num);
+
+    printf("hammertime\n");
+    hammer_num = num;
+    if(hammer_num == 0){ //special case.
+        for(int i = 0; i < table_size; i++){
+            hammer_table[i] = 5*sinf(M_PI*(i+1)/(table_size+2));
+        }
+    }
+    else if(hammer_num == 101){ //another special case I felt was worth including.
+        for(int i = 0; i < table_size; i++){
+            hammer_table[i] = 5*fabs(((table_size+2) / 2.0) - (i+1)) / ((table_size+2)/2);
+        }
+    }
+    else{ //load the file from AKWF.
+        WavFile wavfile(fn); //opens the wav file associated with the waveform given in the string.
+        //now you need to linearly interpolate to make the wavfile fit into the hammer table.
+        if(table_size == wavfile.data_len){
+            for(int i = 0; i < table_size; i++){
+                hammer_table[i] = wavfile.data[i]*5;
+            }
+        }
+        else if(table_size < wavfile.data_len){
+            for(int i = 0; i < table_size; i++){
+                hammer_table[i] = 5*wavfile.data[(int)(i*wavfile.data_len/(float)table_size)];
+            }
+        }
+        else if(table_size > wavfile.data_len){ //need to linearly interpolate.
+            float inter;
+            float index;
+            int l_index; //lower
+            int u_index; //upper
+            for(int i = 0; i < table_size; i++){
+                index = (i*wavfile.data_len/(float)table_size);
+                l_index = (int) index;
+                u_index = l_index+1;
+                if(u_index < wavfile.data_len)
+                    hammer_table[i] = 5*((index-l_index)*wavfile.data[u_index] + (u_index-index)*wavfile.data[l_index]); //linear interpolation
+                else //edge case
+                    hammer_table[i] = 5*((index-l_index)*wavfile.data[wavfile.data_len] + (u_index-index)*wavfile.data[l_index]); 
+            }            
+        }
+    }
 }
 
 void Scanner::setMass(float f){

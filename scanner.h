@@ -27,7 +27,7 @@ class Scanner{
   void setBoundaries(float start, float end); //boundary conditions for the wave. can be perturbed
   void draw_scanner(Display *dpy, Window w, GC gc);
   void activate();
-  void randomize_hammer();
+  void setHammer(int num);
   void updateParams();
 
   
@@ -68,6 +68,7 @@ class Scanner{
   float *masses;       //masses
   
   float *hammer_table; //this is the shape of the hammer
+  int hammer_num;
   
   unsigned int k_; //k_ is the number of scanner updates. 
   unsigned int t_; //t_ is the number of sampling periods passed.
@@ -75,6 +76,7 @@ class Scanner{
   float time_step;
   float volume;
   float i_vel;
+  int rainbow_rate;
   
   const float EQ_LEN = 1; //length of the spring with no forces acting on it. Not sure this matters.
   const float X_DIST = 1;
